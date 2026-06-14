@@ -1,5 +1,5 @@
 /* MF Nutrition — service worker (shell offline) */
-const CACHE = 'mfn-v2';
+const CACHE = 'mfn-v3';
 const SHELL = [
   './index.html',
   './manifest.json',

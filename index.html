@@ -474,6 +474,16 @@ function Root(){
       <div className="alert alert-error">Não foi possível carregar seu perfil. Saia e entre novamente.</div>
       <button className="btn btn-ghost btn-block" onClick={()=>sb.auth.signOut()}>Sair</button></div></div></div>;
 
+  if(profile.role==='coach'){
+    const sub=profile.nutri_until;
+    const expired=!sub||new Date(sub+'T00:00:00')<new Date(new Date().toLocaleDateString('en-CA')+'T00:00:00');
+    if(expired) return <div className="center-screen"><div className="auth-wrap"><div className="auth-card" style={{textAlign:'center'}}>
+        <div className="auth-logo"><LogoWordmark h={60}/></div>
+        <div style={{fontFamily:'var(--serif)',fontSize:18,fontWeight:600,marginBottom:8}}>{sub?'Assinatura expirada':'Assinatura pendente'}</div>
+        <div style={{fontSize:13.5,color:'var(--text2)',lineHeight:1.6,marginBottom:18}}>
+          {sub?`Seu acesso ao MF Nutrition venceu em ${new Date(sub+'T00:00:00').toLocaleDateString('pt-BR')}.`:'Sua conta ainda não tem acesso ao MF Nutrition.'} Para liberar, fale com o administrador.</div>
+        <button className="btn btn-ghost btn-block" onClick={()=>sb.auth.signOut()}>Sair</button></div></div></div>;
+  }
   return profile.role==='coach'
     ? <CoachApp profile={profile} setProfile={setProfile}/>
     : <StudentApp profile={profile} setProfile={setProfile}/>;
