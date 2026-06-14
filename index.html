@@ -667,12 +667,145 @@ function CoachStudentDetail({coach,student,onBack}){
 }
 
 /* ──────── Editor de plano alimentar ──────── */
-/* ──────── Base de alimentos (cache em memória) ──────── */
+/* ════════════════════ BASE DE ALIMENTOS NATIVA ════════════════════
+   Valores por 100 g (ou 100 ml). [nome, kcal, proteína, carbo, gordura, preparo] */
+const FOOD_GROUPS = {
+  'Proteínas': [
+    ['Peito de frango grelhado',165,31,0,3.6,'Grelhe sem óleo, tempere com sal, alho e ervas. ~6-8 min/lado.'],
+    ['Sobrecoxa de frango assada',209,26,0,11,'Asse temperada a 200°C ~35 min. Retire a pele p/ menos gordura.'],
+    ['Carne moída (patinho)',219,28,0,11,'Refogue em panela antiaderente, sem óleo, até dourar.'],
+    ['Acém cozido',215,27,0,11,'Cozinhe na pressão ~30 min com temperos.'],
+    ['Alcatra grelhada',241,28,0,14,'Grelhe na chapa quente; sal só no final.'],
+    ['Filé mignon grelhado',220,29,0,11,'Sele em fogo alto ~3 min/lado.'],
+    ['Contrafilé grelhado',250,27,0,15,'Grelhe ao ponto desejado; deixe descansar 2 min.'],
+    ['Tilápia grelhada',128,26,0,2.7,'Grelhe com limão, sal e azeite ~4 min/lado.'],
+    ['Salmão grelhado',208,22,0,13,'Grelhe com a pele p/ baixo ~4 min, vire e finalize.'],
+    ['Merluza cozida',90,19,0,1.3,'Cozinhe no vapor ou ensopada com tomate.'],
+    ['Atum em água (lata)',116,26,0,1,'Escorra bem. Pronto p/ saladas e sanduíches.'],
+    ['Sardinha em lata',208,25,0,11,'Escorra o óleo. Rica em ômega-3.'],
+    ['Ovo inteiro cozido',155,13,1.1,11,'Cozinhe 8-10 min p/ gema firme.'],
+    ['Clara de ovo cozida',52,11,0.7,0.2,'Cozinhe e separe a gema, ou use claras pasteurizadas.'],
+    ['Lombo suíno assado',242,27,0,14,'Tempere e asse a 180°C ~40 min.'],
+    ['Peito de peru',135,29,0.5,1.7,'Fatias magras, ótimas p/ lanches.'],
+    ['Presunto magro',145,18,1.5,7,'Use em sanduíches e omeletes.'],
+    ['Whey protein (pó)',400,80,8,6,'Misture ~30g em 200ml de água ou leite.'],
+    ['Carne seca cozida',313,33,0,19,'Dessalgue trocando a água, depois cozinhe na pressão.'],
+    ['Camarão cozido',99,24,0.2,0.3,'Cozinhe rápido com alho e limão.'],
+    ['Tofu',76,8,1.9,4.8,'Grelhe ou refogue temperado com shoyu.'],
+  ],
+  'Carboidratos': [
+    ['Arroz branco cozido',128,2.5,28,0.2,'Refogue, adicione água (2:1) e cozinhe ~15 min.'],
+    ['Arroz integral cozido',124,2.6,26,1,'Cozinhe ~25 min; absorve mais água.'],
+    ['Batata doce cozida',86,1.6,20,0.1,'Cozinhe ou asse ~25 min até ficar macia.'],
+    ['Batata inglesa cozida',87,1.9,20,0.1,'Cozinhe com casca p/ manter nutrientes.'],
+    ['Mandioca cozida',125,0.6,30,0.3,'Cozinhe na pressão ~20 min.'],
+    ['Inhame cozido',116,1.5,28,0.2,'Cozinhe até amaciar; ótimo no café da manhã.'],
+    ['Macarrão cozido',158,5.8,31,0.9,'Cozinhe al dente em água com sal.'],
+    ['Macarrão integral cozido',124,5,27,0.5,'Cozinhe al dente; mais fibras.'],
+    ['Aveia em flocos',389,17,66,7,'Misture com leite, iogurte ou frutas.'],
+    ['Pão francês',300,8,59,3.1,'1 unidade ~50g.'],
+    ['Pão de forma integral',253,9,43,3.5,'1 fatia ~25g.'],
+    ['Tapioca (goma)',240,0,60,0,'Hidrate a goma e leve à frigideira até firmar.'],
+    ['Cuscuz de milho cozido',113,2.2,25,0.5,'Hidrate o flocão e cozinhe no vapor.'],
+    ['Quinoa cozida',120,4.4,21,1.9,'Lave bem e cozinhe ~15 min.'],
+    ['Granola',471,10,64,20,'Complemento de iogurte ou frutas.'],
+    ['Milho verde cozido',96,3.4,21,1.5,'Cozinhe a espiga ~15 min.'],
+    ['Feijão carioca cozido',76,4.8,14,0.5,'Cozinhe na pressão ~25 min com temperos.'],
+    ['Feijão preto cozido',77,4.5,14,0.5,'Cozinhe na pressão ~30 min.'],
+    ['Lentilha cozida',116,9,20,0.4,'Cozinhe ~20 min, sem molho prévio.'],
+    ['Grão de bico cozido',164,9,27,2.6,'Deixe de molho e cozinhe na pressão ~25 min.'],
+    ['Ervilha cozida',84,5,14,0.4,'Cozinhe rapidamente; ótima em saladas.'],
+    ['Pão de queijo',295,5,38,13,'Asse a 200°C até dourar.'],
+  ],
+  'Frutas': [
+    ['Banana',89,1.1,23,0.3,'In natura. 1 unidade média ~100g.'],
+    ['Maçã',52,0.3,14,0.2,'In natura com casca.'],
+    ['Mamão',43,0.5,11,0.3,'In natura; ótimo p/ digestão.'],
+    ['Laranja',47,0.9,12,0.1,'Prefira a fruta ao suco.'],
+    ['Morango',32,0.7,7.7,0.3,'Lave bem antes de consumir.'],
+    ['Abacate',160,2,9,15,'Rico em gorduras boas; use com moderação.'],
+    ['Manga',60,0.8,15,0.4,'In natura.'],
+    ['Melancia',30,0.6,8,0.2,'Refrescante e hidratante.'],
+    ['Melão',34,0.8,8,0.2,'In natura, gelado.'],
+    ['Uva',69,0.7,18,0.2,'Lave bem; porção ~1 cacho pequeno.'],
+    ['Abacaxi',50,0.5,13,0.1,'Ótimo no pós-treino.'],
+    ['Kiwi',61,1.1,15,0.5,'Rico em vitamina C.'],
+    ['Pera',57,0.4,15,0.1,'In natura com casca.'],
+    ['Goiaba',68,2.6,14,0.9,'Rica em fibras.'],
+    ['Tangerina',53,0.8,13,0.3,'Prática p/ lanches.'],
+    ['Uva passa',299,3.1,79,0.5,'Porção pequena ~20g.'],
+    ['Açaí (polpa s/ açúcar)',70,1,6,5,'Bata com banana; evite xaropes.'],
+  ],
+  'Legumes e Verduras': [
+    ['Brócolis cozido',35,2.4,7,0.4,'Cozinhe no vapor ~5 min.'],
+    ['Couve-flor cozida',25,1.9,5,0.3,'Cozinhe no vapor; pode virar "arroz".'],
+    ['Cenoura crua',41,0.9,10,0.2,'Ralada ou em palitos.'],
+    ['Tomate',18,0.9,3.9,0.2,'Cru em saladas.'],
+    ['Alface',15,1.4,2.9,0.2,'Lave folha a folha.'],
+    ['Abobrinha cozida',17,1.2,3.1,0.3,'Refogue ou grelhe com pouco azeite.'],
+    ['Espinafre cozido',23,2.9,3.8,0.4,'Refogue rápido com alho.'],
+    ['Pepino',15,0.7,3.6,0.1,'Cru, hidratante.'],
+    ['Beterraba cozida',44,1.7,10,0.2,'Cozinhe e fatie em saladas.'],
+    ['Couve refogada',90,1.8,5,7,'Fatie fino e refogue com alho.'],
+    ['Vagem cozida',35,1.9,8,0.3,'Cozinhe no vapor até ficar al dente.'],
+    ['Berinjela cozida',35,0.8,9,0.2,'Asse ou refogue temperada.'],
+    ['Abóbora cozida',26,1,6.5,0.1,'Cozinhe ou asse; boa em purês.'],
+    ['Pimentão',31,1,6,0.3,'Cru ou assado.'],
+    ['Rúcula',25,2.6,3.7,0.7,'Lave bem; sabor marcante.'],
+  ],
+  'Gorduras': [
+    ['Azeite de oliva extra virgem',884,0,0,100,'1 fio (~5ml) p/ finalizar.'],
+    ['Óleo de coco',862,0,0,100,'Use pouco; bom p/ refogar.'],
+    ['Pasta de amendoim',588,25,20,50,'1 colher de sopa ~15g.'],
+    ['Castanha de caju',553,18,30,44,'Porção ~30g (punhado).'],
+    ['Castanha do Pará',656,14,12,66,'1-2 unidades já bastam.'],
+    ['Amêndoas',579,21,22,50,'Porção ~30g.'],
+    ['Nozes',654,15,14,65,'Porção ~30g; ricas em ômega-3.'],
+    ['Amendoim torrado',567,26,16,49,'Sem sal de preferência.'],
+    ['Chia',486,17,42,31,'Hidrate em água/leite ~15 min.'],
+    ['Linhaça',534,18,29,42,'Use triturada p/ melhor absorção.'],
+    ['Coco ralado',354,3.3,15,33,'Complemento de receitas.'],
+    ['Azeitona',115,0.8,6,11,'Porção pequena; controle o sódio.'],
+    ['Manteiga',717,0.9,0.1,81,'Use com moderação.'],
+  ],
+  'Laticínios': [
+    ['Leite integral',61,3.2,4.7,3.3,'Por 100ml.'],
+    ['Leite desnatado',35,3.4,5,0.1,'Por 100ml.'],
+    ['Iogurte natural integral',61,3.5,4.7,3.3,'Combine com frutas ou granola.'],
+    ['Iogurte natural desnatado',41,4.1,6,0.2,'Baixa gordura.'],
+    ['Iogurte grego natural',97,9,4,5,'Ótimo com frutas vermelhas.'],
+    ['Queijo minas frescal',264,17,3,20,'Fatias magras p/ lanches.'],
+    ['Queijo cottage',98,11,3.4,4.3,'Alto em proteína, baixa gordura.'],
+    ['Requeijão light',175,10,5,12,'1 colher de sopa ~20g.'],
+    ['Ricota',174,11,3,13,'Boa p/ patês e recheios.'],
+    ['Mussarela',280,22,2.2,21,'1 fatia ~20g.'],
+    ['Queijo prato',360,26,2,28,'Use com moderação.'],
+    ['Cream cheese',250,6,4,24,'1 colher de sopa ~15g.'],
+  ],
+  'Outros': [
+    ['Mel',309,0.3,84,0,'1 colher de chá p/ adoçar.'],
+    ['Chocolate 70% cacau',579,7.8,46,38,'Porção ~20g (2 quadradinhos).'],
+    ['Café sem açúcar',2,0.1,0,0,'Sem calorias relevantes.'],
+    ['Creatina (pó)',0,0,0,0,'3-5g por dia, em qualquer horário.'],
+    ['Whey + banana (shake)',230,22,28,3,'Bata 1 dose de whey, 1 banana e 200ml de líquido.'],
+    ['Doce de leite',315,6,55,7,'Consumir com moderação.'],
+    ['Barra de proteína',350,30,40,9,'Praticidade p/ lanches.'],
+  ],
+};
+const slug = s => 'native-'+(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-');
+const NATIVE_FOODS = Object.entries(FOOD_GROUPS).flatMap(([cat,arr])=>arr.map(a=>(
+  {id:slug(a[0]), name:a[0], category:cat, kcal:a[1], protein:a[2], carb:a[3], fat:a[4], preparo:a[5], native:true}
+)));
+
+/* cache: base nativa + alimentos personalizados do treinador (Supabase, se houver) */
 let _foodsCache=null;
+function clearFoodsCache(){ _foodsCache=null; }
 async function getFoods(){
   if(_foodsCache) return _foodsCache;
-  const {data}=await sb.from('foods').select('*').order('category').order('name');
-  _foodsCache=data||[]; return _foodsCache;
+  let custom=[];
+  try{ const {data}=await sb.from('foods').select('*').not('owner_id','is',null).order('name'); custom=data||[]; }catch(e){}
+  _foodsCache=[...custom, ...NATIVE_FOODS];
+  return _foodsCache;
 }
 
 /* ──────── Carregar árvore de um cronograma (ids novos p/ reaplicar) ──────── */
@@ -709,12 +842,26 @@ function buildTemplatePayload(meals, templateId){
 }
 
 /* ──────── Modal: selecionar alimento da base ──────── */
-function FoodPicker({foods,onPick,onClose}){
+function FoodPicker({foods,onPick,onClose,coachId,onAdded}){
   const [q,setQ]=useState(''); const [cat,setCat]=useState('Todas');
   const [sel,setSel]=useState(null); const [grams,setGrams]=useState('100');
+  const [adding,setAdding]=useState(false); const [busy,setBusy]=useState(false);
+  const [nf,setNf]=useState({name:'',category:'Proteínas',kcal:'',protein:'',carb:'',fat:'',preparo:''});
   const cats=['Todas',...Array.from(new Set(foods.map(f=>f.category)))];
-  const list=foods.filter(f=>(cat==='Todas'||f.category===cat) && f.name.toLowerCase().includes(q.toLowerCase())).slice(0,250);
+  const list=foods.filter(f=>(cat==='Todas'||f.category===cat) && f.name.toLowerCase().includes(q.toLowerCase())).slice(0,300);
   const fct=sel?n0(grams)/100:0;
+  const saveFood=async()=>{
+    if(!nf.name.trim()){alert('Dê um nome ao alimento.');return;}
+    setBusy(true);
+    try{
+      const {error}=await sb.from('foods').insert({owner_id:coachId,name:nf.name.trim(),category:nf.category,
+        kcal:n0(nf.kcal),protein:n0(nf.protein),carb:n0(nf.carb),fat:n0(nf.fat),preparo:nf.preparo||null});
+      if(error) throw error;
+      clearFoodsCache(); if(onAdded) await onAdded();
+      setAdding(false); setNf({name:'',category:'Proteínas',kcal:'',protein:'',carb:'',fat:'',preparo:''});
+    }catch(e){ alert('Não foi possível salvar. Rode o patch "patch-foods-templates.sql" no Supabase p/ habilitar alimentos próprios.\n\n'+(e.message||e)); }
+    setBusy(false);
+  };
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
@@ -722,20 +869,39 @@ function FoodPicker({foods,onPick,onClose}){
           <div className="ph-title" style={{fontSize:20}}>Base de alimentos</div>
           <button className="btn-icon" onClick={onClose}>✕</button>
         </div>
-        {!sel ? (<>
+        {adding ? (<>
+          <span className="link" onClick={()=>setAdding(false)} style={{fontSize:13}}>← voltar</span>
+          <div style={{margin:'10px 0',fontFamily:'var(--serif)',fontSize:19}}>Cadastrar alimento</div>
+          <div style={{fontSize:11,color:'var(--text2)',marginBottom:12}}>Valores por 100 g (ou 100 ml). Fica salvo só na sua base.</div>
+          <div style={{display:'flex',flexDirection:'column',gap:11}}>
+            <FI label="Nome" value={nf.name} onChange={e=>setNf({...nf,name:e.target.value})} placeholder="Ex: Pão low carb"/>
+            <div className="fg"><label className="flbl">Categoria</label>
+              <select className="fi" value={nf.category} onChange={e=>setNf({...nf,category:e.target.value})}>
+                {Object.keys(FOOD_GROUPS).map(c=><option key={c}>{c}</option>)}</select></div>
+            <div className="fgrid" style={{gridTemplateColumns:'repeat(4,1fr)'}}>
+              <FI label="Kcal" type="number" value={nf.kcal} onChange={e=>setNf({...nf,kcal:e.target.value})}/>
+              <FI label="Prot" type="number" value={nf.protein} onChange={e=>setNf({...nf,protein:e.target.value})}/>
+              <FI label="Carb" type="number" value={nf.carb} onChange={e=>setNf({...nf,carb:e.target.value})}/>
+              <FI label="Gord" type="number" value={nf.fat} onChange={e=>setNf({...nf,fat:e.target.value})}/>
+            </div>
+            <FI label="Forma de preparo (opcional)" value={nf.preparo} onChange={e=>setNf({...nf,preparo:e.target.value})}/>
+            <button className="btn btn-primary btn-block" disabled={busy} onClick={saveFood}>{busy?'Salvando…':'Salvar na base'}</button>
+          </div>
+        </>) : !sel ? (<>
           <input className="fi" placeholder="🔍 Buscar alimento..." value={q} onChange={e=>setQ(e.target.value)} autoFocus/>
           <div style={{display:'flex',gap:6,overflowX:'auto',padding:'11px 0'}}>
             {cats.map(c=><button key={c} className={`btn btn-sm ${cat===c?'btn-primary':'btn-ghost'}`} style={{flexShrink:0}} onClick={()=>setCat(c)}>{c}</button>)}
           </div>
-          <div style={{maxHeight:'46vh',overflowY:'auto'}}>
+          <div style={{maxHeight:'44vh',overflowY:'auto'}}>
             {list.map(f=>(
               <div key={f.id} onClick={()=>{setSel(f);setGrams('100');}} style={{padding:'11px 4px',borderBottom:'1px solid var(--border)',cursor:'pointer',display:'flex',justifyContent:'space-between',gap:10}}>
-                <div><div style={{fontWeight:600,fontSize:14}}>{f.name}</div><div style={{fontSize:11,color:'var(--text2)'}}>{f.category} · por 100g</div></div>
+                <div><div style={{fontWeight:600,fontSize:14}}>{f.name}{!f.native && <span style={{color:'var(--gold)',fontSize:10,marginLeft:5}}>★ meu</span>}</div><div style={{fontSize:11,color:'var(--text2)'}}>{f.category} · por 100g</div></div>
                 <div style={{textAlign:'right',fontSize:11,color:'var(--text2)',whiteSpace:'nowrap'}}>{r0(f.kcal)} kcal<br/>P{r0(f.protein)} C{r0(f.carb)} G{r0(f.fat)}</div>
               </div>
             ))}
             {list.length===0 && <div className="muted" style={{padding:20,textAlign:'center'}}>Nada encontrado.</div>}
           </div>
+          <button className="btn btn-ghost btn-block btn-sm" style={{marginTop:10}} onClick={()=>setAdding(true)}>＋ Cadastrar alimento próprio</button>
         </>) : (<>
           <span className="link" onClick={()=>setSel(null)} style={{fontSize:13}}>← voltar à lista</span>
           <div style={{margin:'12px 0 4px',fontFamily:'var(--serif)',fontSize:21}}>{sel.name}</div>
@@ -773,7 +939,7 @@ function TemplatePicker({coachId,onPick,onClose}){
 }
 
 /* ──────── Editor de refeições reutilizável (plano e cronograma) ──────── */
-function MealsEditor({meals,setMeals,foods}){
+function MealsEditor({meals,setMeals,foods,coachId,onFoodsChange}){
   const [pickFor,setPickFor]=useState(null);
   const addMeal=()=>setMeals(m=>[...m,{id:genId(),name:'Nova refeição',time:'',notes:'',items:[]}]);
   const updMeal=(id,k,v)=>setMeals(m=>m.map(x=>x.id===id?{...x,[k]:v}:x));
@@ -836,7 +1002,7 @@ function MealsEditor({meals,setMeals,foods}){
         );
       })}
       <button className="btn btn-secondary btn-block" style={{marginTop:14}} onClick={addMeal}>＋ Adicionar refeição</button>
-      {pickFor && <FoodPicker foods={foods} onPick={onPickFood} onClose={()=>setPickFor(null)}/>}
+      {pickFor && <FoodPicker foods={foods} onPick={onPickFood} onClose={()=>setPickFor(null)} coachId={coachId} onAdded={onFoodsChange}/>}
     </>
   );
 }
@@ -941,7 +1107,7 @@ function PlanEditor({coach,student}){
         <div style={{fontSize:11,color:'var(--text3)',textAlign:'center'}}>Totais diários do plano</div>
       </div>
 
-      <MealsEditor meals={meals} setMeals={setMeals} foods={foods}/>
+      <MealsEditor meals={meals} setMeals={setMeals} foods={foods} coachId={coach.id} onFoodsChange={()=>getFoods().then(setFoods)}/>
 
       <div style={{position:'sticky',bottom:0,padding:'14px 0',marginTop:8}}>
         <button className="btn btn-primary btn-block" disabled={busy} onClick={save}>{busy?'Salvando…':saved?'✓ Plano salvo':'💾 Salvar plano'}</button>
@@ -992,7 +1158,7 @@ function TemplateEditor({coach,template,onBack}){
         <div style={{marginTop:12}}><FTA label="Observações" value={meta.notes} onChange={e=>setMeta({...meta,notes:e.target.value})} placeholder="Indicações gerais do cronograma"/></div>
         <MacroRow s={total}/><div style={{fontSize:11,color:'var(--text3)',textAlign:'center'}}>Totais diários</div>
       </div>
-      <MealsEditor meals={meals} setMeals={setMeals} foods={foods}/>
+      <MealsEditor meals={meals} setMeals={setMeals} foods={foods} coachId={coach.id} onFoodsChange={()=>getFoods().then(setFoods)}/>
       <div style={{position:'sticky',bottom:0,padding:'14px 0',marginTop:8}}>
         <button className="btn btn-primary btn-block" disabled={busy} onClick={save}>{busy?'Salvando…':saved?'✓ Salvo':'💾 Salvar cronograma'}</button>
       </div>
