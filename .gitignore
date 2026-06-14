@@ -1,0 +1,5 @@
+# Não publicar artefatos de setup (contêm o código de treinador) nem locais
+*.sql
+.claude/
+Thumbs.db
+.DS_Store

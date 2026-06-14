@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="MF Nutrition">
+<meta name="theme-color" content="#f7f3ef">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<link rel="icon" href="./icons/icon-192.png">
+<title>MF Nutrition — Acompanhamento Nutricional</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="./config.js"></script>
+<script src="./lib/react.js"></script>
+<script src="./lib/react-dom.js"></script>
+<script src="./lib/babel.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#f7f3ef;--bg2:#ffffff;--bg3:#f4ede4;--bg4:#e9ddd3;
+  --border:#ece2d6;--border2:#dccfbe;
+  --text:#1f1a1c;--text2:#8a7d76;--text3:#b4a79e;
+  --accent:#5a1e2e;--accent2:#4a1825;--accent3:#8f3147;--accent-dim:rgba(90,30,46,.07);
+  --gold:#b0894f;--gold2:#c2a269;--gold-dim:rgba(176,137,79,.13);
+  --green:#5a1e2e;--green2:#6e2438;--green-dim:rgba(90,30,46,.07);
+  --sage:#6f7d57;--sage-dim:rgba(111,125,87,.14);
+  --red:#b3434f;--red-dim:rgba(179,67,79,.1);
+  --blue:#5b7a99;--blue-dim:rgba(91,122,153,.12);
+  --prot:#5a1e2e;--carb:#b0894f;--fat:#5b7a99;
+  --ink:#1f1a1c;--cream:#fbf7f2;
+  --r:18px;--r-sm:12px;
+  --shadow:0 1px 2px rgba(31,26,28,.04),0 6px 22px rgba(31,26,28,.05);
+  --shadow-lg:0 18px 50px rgba(31,26,28,.14);
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;
+  --serif:'Playfair Display',Georgia,'Times New Roman',serif;
+  --serif2:'Cormorant Garamond',Georgia,serif;
+}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;font-size:14px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:12px 19px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .15s;line-height:1;min-height:48px;white-space:nowrap}
+.btn-primary{background:var(--accent);color:var(--cream);box-shadow:0 6px 18px rgba(90,30,46,.22)}
+.btn-primary:hover{background:var(--accent2)}
+.btn-primary:active{transform:scale(.985)}
+.btn-green{background:var(--accent);color:var(--cream);box-shadow:0 6px 18px rgba(90,30,46,.22)}
+.btn-green:hover{background:var(--accent2)}
+.btn-secondary{background:var(--bg2);color:var(--text);border:1px solid var(--border2)}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border2)}
+.btn-ghost:hover{color:var(--text);border-color:var(--text3)}
+.btn-sm{padding:8px 13px;font-size:12.5px;min-height:38px;border-radius:10px}
+.btn-block{width:100%}
+.btn-icon{min-width:42px;height:42px;padding:0 11px;background:var(--bg2);border:1px solid var(--border2);border-radius:11px;cursor:pointer;color:var(--text2);font-size:15px;line-height:1;transition:all .15s;display:inline-flex;align-items:center;justify-content:center}
+.btn-icon:hover{color:var(--accent);border-color:var(--accent)}
+.bgroup{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+
+/* ── Form ── */
+.fg{display:flex;flex-direction:column;gap:6px}
+.flbl{font-size:12px;color:var(--text2);font-weight:600;letter-spacing:.1px}
+.fi{background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:13px 14px;color:var(--text);font-size:16px;width:100%;outline:none;transition:border .15s,box-shadow .15s;-webkit-appearance:none;appearance:none}
+.fi:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+.fi::placeholder{color:var(--text3)}
+select.fi{cursor:pointer;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='%23b4a79e' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+textarea.fi{resize:vertical;min-height:64px;line-height:1.5;font-size:15px}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:13px}
+
+/* ── Cards / layout ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:22px;box-shadow:var(--shadow)}
+.card+.card{margin-top:14px}
+.ph-title{font-family:var(--serif);font-size:26px;font-weight:600;letter-spacing:-.2px;color:var(--text)}
+.ph-sub{font-size:13px;color:var(--text2);margin-top:3px}
+.abar{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:12px}
+.breadcrumb{font-size:13px;color:var(--text2);cursor:pointer;display:inline-flex;align-items:center;gap:5px;margin-bottom:6px;transition:color .12s;min-height:28px}
+.breadcrumb:hover{color:var(--accent)}
+.avatar{width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--gold));display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:600;font-size:17px;color:var(--cream);flex-shrink:0;overflow:hidden}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;line-height:1.5;white-space:nowrap}
+.bg{background:var(--sage-dim);color:var(--sage)}
+.bo{background:var(--accent-dim);color:var(--accent)}
+.bb{background:var(--blue-dim);color:#4a6680}
+.br{background:var(--red-dim);color:#9a3540}
+.muted{color:var(--text2)}
+.empty{text-align:center;padding:48px 20px;color:var(--text2)}
+.empty-icon{font-size:44px;margin-bottom:12px}
+.empty-title{font-family:var(--serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:6px}
+.alert{padding:12px 14px;border-radius:11px;font-size:12.5px;margin-bottom:14px;line-height:1.55}
+.alert-info{background:var(--blue-dim);border:1px solid rgba(91,122,153,.22);color:#4a6680}
+.alert-success{background:var(--sage-dim);border:1px solid rgba(111,125,87,.28);color:var(--sage)}
+.alert-warn{background:var(--gold-dim);border:1px solid rgba(176,137,79,.3);color:#8a6a37}
+.alert-error{background:var(--red-dim);border:1px solid rgba(179,67,79,.25);color:#9a3540}
+.spinner{width:30px;height:30px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;margin:40px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.fade-in{animation:fade .35s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.center-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+
+/* ── Auth ── */
+.auth-wrap{width:100%;max-width:410px}
+.auth-card{background:var(--bg2);border:1px solid var(--border);border-radius:24px;padding:34px 28px;box-shadow:var(--shadow-lg)}
+.auth-logo{display:flex;flex-direction:column;align-items:center;gap:14px;margin-bottom:26px}
+.seg{display:flex;background:var(--bg3);border-radius:12px;padding:4px;gap:4px;margin-bottom:16px}
+.seg button{flex:1;padding:9px;border:none;background:none;color:var(--text2);font-size:13px;font-weight:600;border-radius:9px;cursor:pointer;transition:all .15s;min-height:40px}
+.seg button.on{background:var(--accent);color:var(--cream);box-shadow:0 3px 10px rgba(90,30,46,.2)}
+.link{color:var(--accent);cursor:pointer;font-weight:600}
+
+/* ── App shell ── */
+.app{display:flex;min-height:100vh}
+.sidebar{width:230px;background:var(--bg2);border-right:1px solid var(--border);padding:18px 12px;display:flex;flex-direction:column;gap:3px;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto;z-index:50}
+.logo-row{display:flex;align-items:center;gap:11px;padding:2px 6px 16px;border-bottom:1px solid var(--border);margin-bottom:8px}
+.logo-name{font-family:var(--serif);font-weight:600;font-size:16px;line-height:1.1;letter-spacing:.3px}
+.logo-sub{font-size:9px;color:var(--gold);letter-spacing:2px;text-transform:uppercase;margin-top:3px;font-weight:600}
+.nav-btn{display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:11px;cursor:pointer;font-size:13.5px;color:var(--text2);transition:all .12s;border:none;background:none;width:100%;text-align:left;min-height:44px}
+.nav-btn:hover{background:var(--bg3);color:var(--text)}
+.nav-btn.active{background:var(--accent-dim);color:var(--accent);font-weight:600}
+.nav-ico{font-size:16px;width:18px;text-align:center;flex-shrink:0}
+.sidebar-footer{margin-top:auto;padding:12px 8px 0;border-top:1px solid var(--border);font-size:11px;color:var(--text3)}
+.main{flex:1;padding:28px 32px;overflow-y:auto;width:100%;max-width:1080px;margin:0 auto}
+.topbar{display:none;align-items:center;gap:12px;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top));background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:40}
+.hamb{width:42px;height:42px;border-radius:11px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.overlay{display:none}
+
+/* ── Student bottom nav (chumbo) ── */
+.botnav{display:block;position:fixed;bottom:0;left:0;right:0;background:var(--ink);z-index:60;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -6px 24px rgba(31,26,28,.16)}
+.botnav-in{display:flex;max-width:560px;margin:0 auto}
+.botnav button{flex:1;background:none;border:none;color:#8c8079;font-size:10px;font-weight:600;padding:10px 2px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;transition:color .15s}
+.botnav button .bi{font-size:19px}
+.botnav button.on{color:#d98a9c}
+.stu-main{max-width:560px;margin:0 auto;padding:20px 16px 92px}
+
+/* ── Meal cards ── */
+.meal{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:13px;box-shadow:var(--shadow)}
+.meal-head{display:flex;align-items:center;gap:12px;padding:15px 16px;cursor:pointer}
+.meal-head.done{background:var(--accent-dim)}
+.meal-time{font-size:11px;color:var(--gold);font-weight:700;letter-spacing:.6px}
+.meal-name{font-family:var(--serif);font-size:17px;font-weight:600}
+.meal-kcal{font-size:12px;color:var(--text2);margin-top:2px}
+.check{width:30px;height:30px;border-radius:50%;border:2px solid var(--border2);flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .18s;background:var(--bg2);color:transparent;font-size:15px;font-weight:800}
+.check.on{background:var(--accent);border-color:var(--accent);color:var(--cream)}
+.meal-body{padding:4px 16px 14px;border-top:1px solid var(--border)}
+.item-row{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.item-row:last-child{border-bottom:none}
+.item-dot{color:var(--gold);margin-top:2px}
+.item-food{font-size:14px;font-weight:600}
+.item-qty{font-size:12px;color:var(--text2)}
+.item-macros{font-size:11px;color:var(--text3);margin-top:2px}
+.sub-link{font-size:11.5px;color:var(--blue);cursor:pointer;font-weight:600;margin-top:3px;display:inline-block}
+.sub-box{background:var(--bg3);border:1px dashed var(--border2);border-radius:10px;padding:9px 11px;margin-top:7px}
+.sub-box .st{font-size:10.5px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.sub-item{font-size:12.5px;padding:3px 0;color:var(--text2)}
+
+/* ── Macro ring / bars ── */
+.macro-row{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:16px 0}
+.macro{background:var(--bg3);border-radius:14px;padding:13px 10px;text-align:center}
+.macro-v{font-family:var(--serif);font-size:21px;font-weight:600;letter-spacing:-.3px;line-height:1}
+.macro-l{font-size:9.5px;color:var(--text2);margin-top:5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.macro-u{font-size:11px;color:var(--text3);font-weight:500}
+.bar{height:7px;background:var(--bg4);border-radius:4px;overflow:hidden;margin-top:7px}
+.bar-fill{height:100%;border-radius:4px;transition:width .4s}
+.kcal-hero{background:linear-gradient(135deg,var(--accent-dim),rgba(176,137,79,.06));border:1px solid var(--border);border-radius:20px;padding:20px;display:flex;align-items:center;justify-content:space-between;gap:14px;box-shadow:var(--shadow)}
+.kcal-big{font-family:var(--serif);font-size:34px;font-weight:600;letter-spacing:-.5px;line-height:1}
+.ring{transform:rotate(-90deg)}
+.ring-bg{stroke:var(--bg4)}
+.ring-fg{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .6s ease}
+
+/* ── Progress / chat ── */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px}
+.stat{background:var(--bg2);border-radius:14px;padding:14px 15px;border:1px solid var(--border);box-shadow:var(--shadow)}
+.stat-lbl{font-size:11px;color:var(--text2);margin-bottom:5px;font-weight:600}
+.stat-val{font-family:var(--serif);font-size:23px;font-weight:600;line-height:1;letter-spacing:-.3px}
+.stat-unit{font-size:12px;color:var(--text2);margin-left:2px;font-weight:500}
+.photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:9px}
+.photo-thumb{aspect-ratio:1;border-radius:13px;overflow:hidden;border:1px solid var(--border);background:var(--bg3);position:relative;cursor:pointer}
+.photo-thumb img{width:100%;height:100%;object-fit:cover}
+.photo-cap{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.8));color:#fff;font-size:9px;padding:10px 6px 4px}
+.chat{display:flex;flex-direction:column;gap:9px;margin-bottom:14px}
+.bubble{max-width:80%;padding:10px 13px;border-radius:16px;font-size:13.5px;line-height:1.5}
+.bubble.me{align-self:flex-end;background:var(--accent);color:var(--cream);border-bottom-right-radius:5px}
+.bubble.them{align-self:flex-start;background:var(--bg3);color:var(--text);border-bottom-left-radius:5px}
+.bubble .who{font-size:10px;font-weight:700;opacity:.7;margin-bottom:2px}
+.bubble .tm{font-size:9.5px;opacity:.6;margin-top:3px;text-align:right}
+.student-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:13px}
+.student-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:18px;cursor:pointer;transition:all .18s;box-shadow:var(--shadow)}
+.student-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 12px 30px rgba(31,26,28,.1)}
+.code-box{background:linear-gradient(135deg,var(--accent-dim),var(--gold-dim));border:1px dashed var(--gold);border-radius:14px;padding:18px;text-align:center}
+.code-val{font-family:var(--serif);font-size:32px;font-weight:600;letter-spacing:6px;color:var(--accent)}
+.sec-title{font-size:11.5px;font-weight:700;color:var(--accent);margin-bottom:14px;padding-bottom:9px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;letter-spacing:.6px;text-transform:uppercase}
+.modal-bg{position:fixed;inset:0;background:rgba(31,26,28,.45);backdrop-filter:blur(3px);z-index:100;display:flex;align-items:center;justify-content:center;padding:18px}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:24px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg)}
+.pill{display:inline-flex;align-items:center;gap:5px;background:var(--bg3);border-radius:9px;padding:5px 11px;font-size:12px;color:var(--text2);margin:0 6px 6px 0}
+.hr-gold{border:none;border-top:1px solid var(--gold);opacity:.4;width:40px;margin:10px auto}
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+
+@media(max-width:860px){
+  .topbar{display:flex}
+  .overlay{display:block;position:fixed;inset:0;background:rgba(31,26,28,.4);z-index:45;opacity:0;pointer-events:none;transition:opacity .2s}
+  .overlay.show{opacity:1;pointer-events:auto}
+  .sidebar{position:fixed;left:0;top:0;height:100%;transform:translateX(-100%);transition:transform .22s ease;box-shadow:0 0 40px rgba(31,26,28,.18)}
+  .sidebar.open{transform:translateX(0)}
+  .main{padding:20px 16px 40px}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useCallback } = React;
+
+/* ════════════════════ Config / Supabase ════════════════════ */
+const CFG = window.MFN_CONFIG || {};
+const CONFIGURED = !!(CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY);
+let sb = null;
+if (CONFIGURED && window.supabase) {
+  sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+}
+
+/* ════════════════════ Helpers ════════════════════ */
+const todayStr = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD local
+const initials = n => (n||'?').split(' ').filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase();
+const n0 = v => { const x = parseFloat(v); return isNaN(x) ? 0 : x; };
+const r0 = v => Math.round(n0(v));
+const fmtTime = t => { try { return new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); } catch { return ''; } };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+
+function sumItems(items){
+  return (items||[]).reduce((a,i)=>({
+    kcal:a.kcal+n0(i.kcal), protein:a.protein+n0(i.protein), carb:a.carb+n0(i.carb), fat:a.fat+n0(i.fat)
+  }), {kcal:0,protein:0,carb:0,fat:0});
+}
+function sumMeals(meals){
+  return (meals||[]).reduce((a,m)=>{
+    const s = sumItems(m.items);
+    return {kcal:a.kcal+s.kcal, protein:a.protein+s.protein, carb:a.carb+s.carb, fat:a.fat+s.fat};
+  }, {kcal:0,protein:0,carb:0,fat:0});
+}
+
+/* resize foto p/ upload */
+function resizeImage(file, max=1000, quality=0.82){
+  return new Promise((res,rej)=>{
+    const r = new FileReader();
+    r.onload = e => { const img = new Image(); img.onload = () => {
+      const c = document.createElement('canvas'); let {width:w,height:h} = img;
+      const sc = Math.min(max/w, max/h, 1); c.width = Math.round(w*sc); c.height = Math.round(h*sc);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      c.toBlob(b => b ? res(b) : rej('blob'), 'image/jpeg', quality);
+    }; img.onerror = rej; img.src = e.target.result; };
+    r.onerror = rej; r.readAsDataURL(file);
+  });
+}
+async function uploadPhoto(userId, blob){
+  const path = `${userId}/${uid()}.jpg`;
+  const { error } = await sb.storage.from('photos').upload(path, blob, { contentType:'image/jpeg' });
+  if (error) throw error;
+  return sb.storage.from('photos').getPublicUrl(path).data.publicUrl;
+}
+
+/* ════════════════════ Logo — monograma MF (M vinho · F dourado) ════════════════════ */
+const SERIF_FONT = "'Cormorant Garamond',Georgia,'Times New Roman',serif";
+function Monogram({h=44}){
+  return (
+    <svg viewBox="0 0 118 92" height={h} width={h*1.28} style={{flexShrink:0,overflow:'visible'}} aria-label="MF Nutrition">
+      <text x="40" y="74" textAnchor="middle" fontFamily={SERIF_FONT} fontSize="86" fontWeight="600" fill="var(--accent)">M</text>
+      <text x="78" y="72" textAnchor="middle" fontFamily={SERIF_FONT} fontSize="90" fontWeight="500" fill="var(--gold)">F</text>
+    </svg>
+  );
+}
+function LogoMark({size=44}){ return <Monogram h={size}/>; }
+function LogoWordmark({h=70}){
+  return (
+    <div style={{textAlign:'center'}}>
+      <Monogram h={h}/>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:9,marginTop:0}}>
+        <span style={{height:1,width:24,background:'var(--gold)',opacity:.55}}/>
+        <span style={{fontFamily:'var(--font)',letterSpacing:6,fontSize:12.5,fontWeight:600,color:'var(--text)',paddingLeft:6}}>NUTRITION</span>
+        <span style={{height:1,width:24,background:'var(--gold)',opacity:.55}}/>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════ UI primitives ════════════════════ */
+function FI({label,unit,...p}){return(
+  <div className="fg">{label&&<label className="flbl">{label}{unit&&<span style={{color:'var(--text3)',marginLeft:3}}>({unit})</span>}</label>}<input className="fi" {...p}/></div>);}
+function FTA({label,...p}){return(
+  <div className="fg">{label&&<label className="flbl">{label}</label>}<textarea className="fi" {...p}/></div>);}
+function Spinner(){ return <div className="spinner"/>; }
+
+function MacroRow({s, goal}){
+  const items = [
+    {k:'kcal',l:'Kcal',u:'',c:'var(--accent)'},
+    {k:'protein',l:'Proteína',u:'g',c:'var(--accent3)'},
+    {k:'carb',l:'Carbo',u:'g',c:'var(--gold)'},
+    {k:'fat',l:'Gordura',u:'g',c:'var(--fat)'},
+  ];
+  return (
+    <div className="macro-row">
+      {items.map(m=>(
+        <div className="macro" key={m.k}>
+          <div className="macro-v" style={{color:m.c}}>{r0(s[m.k])}<span className="macro-u">{m.u}</span></div>
+          <div className="macro-l">{m.l}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* anel de progresso de kcal */
+function KcalRing({done, goal}){
+  const R=34, C=2*Math.PI*R;
+  const pct = goal>0 ? Math.min(done/goal,1) : 0;
+  return (
+    <svg width="84" height="84" className="ring">
+      <circle className="ring-bg" cx="42" cy="42" r={R} fill="none" strokeWidth="8"/>
+      <circle className="ring-fg" cx="42" cy="42" r={R} fill="none" strokeWidth="8"
+        strokeDasharray={C} strokeDashoffset={C*(1-pct)}/>
+    </svg>
+  );
+}
+
+/* ════════════════════ Setup screen (sem config) ════════════════════ */
+function SetupScreen(){
+  return (
+    <div className="center-screen">
+      <div className="auth-wrap">
+        <div className="auth-card">
+          <div className="auth-logo"><LogoWordmark h={62}/></div>
+          <div className="alert alert-warn">⚙️ <strong>Falta configurar o Supabase.</strong></div>
+          <p style={{fontSize:13,lineHeight:1.7,color:'var(--text2)'}}>
+            Abra o arquivo <code style={{color:'var(--accent)'}}>config.js</code> e cole a URL e a chave
+            anônima do seu projeto Supabase. Depois rode o <code style={{color:'var(--accent)'}}>schema.sql</code> no
+            SQL Editor. O passo a passo completo está em <strong>SETUP.md</strong>.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════ Auth ════════════════════ */
+function AuthScreen(){
+  const [mode,setMode] = useState('login'); // login | signup
+  const [role,setRole] = useState('student');
+  const [name,setName] = useState('');
+  const [email,setEmail] = useState('');
+  const [pass,setPass] = useState('');
+  const [code,setCode] = useState('');
+  const [acode,setAcode] = useState('');
+  const [busy,setBusy] = useState(false);
+  const [msg,setMsg] = useState(null); // {type, text}
+
+  async function submit(e){
+    e.preventDefault(); setMsg(null);
+    if(!email || !pass){ setMsg({type:'error',text:'Preencha e-mail e senha.'}); return; }
+    if(mode==='signup' && !name.trim()){ setMsg({type:'error',text:'Informe seu nome.'}); return; }
+    if(mode==='signup' && role==='student' && !code.trim()){ setMsg({type:'error',text:'Informe o código do seu treinador.'}); return; }
+    if(mode==='signup' && role==='coach' && !acode.trim()){ setMsg({type:'error',text:'Informe o código de acesso de treinador.'}); return; }
+    setBusy(true);
+    try{
+      if(mode==='login'){
+        const { error } = await sb.auth.signInWithPassword({ email:email.trim(), password:pass });
+        if(error) throw error;
+      } else {
+        if(role==='coach'){
+          const { data:ok } = await sb.rpc('coach_invite_valid',{ p_code:acode.trim() });
+          if(!ok){ setMsg({type:'error',text:'Código de acesso de treinador inválido ou esgotado.'}); setBusy(false); return; }
+        }
+        const { data, error } = await sb.auth.signUp({
+          email:email.trim(), password:pass,
+          options:{ data:{ role, name:name.trim(),
+            coach_code: role==='student'?code.trim():null,
+            coach_signup_code: role==='coach'?acode.trim():null } }
+        });
+        if(error) throw error;
+        if(data.user && !data.session){
+          setMsg({type:'success',text:'Conta criada! Confirme pelo e-mail e depois faça login.'});
+          setMode('login'); setBusy(false); return;
+        }
+      }
+    }catch(err){
+      let t = err.message || 'Erro';
+      if(/invalid login/i.test(t)) t='E-mail ou senha incorretos.';
+      if(/already registered/i.test(t)) t='Este e-mail já tem conta. Faça login.';
+      if(/at least 6/i.test(t)) t='A senha precisa ter ao menos 6 caracteres.';
+      if(/database error|invalid_coach/i.test(t)) t='Código de acesso de treinador inválido.';
+      setMsg({type:'error',text:t});
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div className="center-screen">
+      <div className="auth-wrap">
+        <div className="auth-card">
+          <div className="auth-logo"><LogoWordmark h={66}/>
+            <div style={{fontFamily:'var(--serif)',fontSize:13.5,color:'var(--text2)',textAlign:'center',fontStyle:'italic',marginTop:-4}}>Nutrição com acompanhamento inteligente</div></div>
+
+          <div className="seg">
+            <button className={mode==='login'?'on':''} onClick={()=>{setMode('login');setMsg(null);}}>Entrar</button>
+            <button className={mode==='signup'?'on':''} onClick={()=>{setMode('signup');setMsg(null);}}>Criar conta</button>
+          </div>
+
+          {msg && <div className={`alert alert-${msg.type==='error'?'error':msg.type==='success'?'success':'info'}`}>{msg.text}</div>}
+
+          <form onSubmit={submit} style={{display:'flex',flexDirection:'column',gap:13}}>
+            {mode==='signup' && (
+              <>
+                <div className="seg" style={{marginBottom:0}}>
+                  <button type="button" className={role==='student'?'on':''} onClick={()=>setRole('student')}>Sou aluno</button>
+                  <button type="button" className={role==='coach'?'on':''} onClick={()=>setRole('coach')}>Sou treinador</button>
+                </div>
+                <FI label="Nome" value={name} onChange={e=>setName(e.target.value)} placeholder="Seu nome"/>
+                {role==='student' &&
+                  <FI label="Código do treinador" value={code} onChange={e=>setCode(e.target.value.toUpperCase())}
+                    placeholder="Ex: A1B2C3" style={{textTransform:'uppercase',letterSpacing:2}}/>}
+                {role==='coach' &&
+                  <FI label="Código de acesso (treinador)" value={acode} onChange={e=>setAcode(e.target.value.toUpperCase())}
+                    placeholder="Fornecido pelo administrador" style={{textTransform:'uppercase',letterSpacing:1}}/>}
+              </>
+            )}
+            <FI label="E-mail" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="email@exemplo.com" autoComplete="email"/>
+            <FI label="Senha" type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="••••••" autoComplete={mode==='login'?'current-password':'new-password'}/>
+            <button className="btn btn-primary btn-block" disabled={busy}>
+              {busy?'Aguarde…':(mode==='login'?'Entrar':'Criar conta')}
+            </button>
+          </form>
+
+          <p style={{textAlign:'center',fontSize:12,color:'var(--text3)',marginTop:16}}>
+            {mode==='login'
+              ? <>Ainda não tem conta? <span className="link" onClick={()=>{setMode('signup');setMsg(null);}}>Criar agora</span></>
+              : <>Já tem conta? <span className="link" onClick={()=>{setMode('login');setMsg(null);}}>Entrar</span></>}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════ Root ════════════════════ */
+function Root(){
+  const [session,setSession] = useState(undefined); // undefined=loading
+  const [profile,setProfile] = useState(undefined);
+
+  useEffect(()=>{
+    if(!sb) return;
+    sb.auth.getSession().then(({data})=>setSession(data.session||null));
+    const { data:sub } = sb.auth.onAuthStateChange((_e,s)=>{ setSession(s||null); if(!s) setProfile(undefined); });
+    return ()=>sub.subscription.unsubscribe();
+  },[]);
+
+  useEffect(()=>{
+    if(!session){ return; }
+    let alive=true;
+    (async()=>{
+      let { data } = await sb.from('profiles').select('*').eq('id',session.user.id).maybeSingle();
+      // o trigger pode demorar 1 instante; tenta de novo
+      if(!data){ await new Promise(r=>setTimeout(r,900)); const r2=await sb.from('profiles').select('*').eq('id',session.user.id).maybeSingle(); data=r2.data; }
+      if(alive) setProfile(data||null);
+    })();
+    return ()=>{alive=false;};
+  },[session]);
+
+  if(!CONFIGURED || !sb) return <SetupScreen/>;
+  if(session===undefined) return <div className="center-screen"><Spinner/></div>;
+  if(!session) return <AuthScreen/>;
+  if(profile===undefined) return <div className="center-screen"><Spinner/></div>;
+  if(profile===null) return <div className="center-screen"><div className="auth-wrap"><div className="auth-card">
+      <div className="alert alert-error">Não foi possível carregar seu perfil. Saia e entre novamente.</div>
+      <button className="btn btn-ghost btn-block" onClick={()=>sb.auth.signOut()}>Sair</button></div></div></div>;
+
+  return profile.role==='coach'
+    ? <CoachApp profile={profile} setProfile={setProfile}/>
+    : <StudentApp profile={profile} setProfile={setProfile}/>;
+}
+
+const genId = () => (crypto.randomUUID ? crypto.randomUUID() : uid());
+
+/* ════════════════════════════════════════════════════════════
+   CARREGAR ÁRVORE DO PLANO (plano > refeições > itens > trocas)
+   ════════════════════════════════════════════════════════════ */
+async function loadPlanTree(planId){
+  const { data:meals } = await sb.from('meals').select('*').eq('plan_id',planId).order('order_index');
+  const mealIds = (meals||[]).map(m=>m.id);
+  let items=[], subs=[];
+  if(mealIds.length){
+    const ri = await sb.from('meal_items').select('*').in('meal_id',mealIds).order('order_index');
+    items = ri.data||[];
+    const itemIds = items.map(i=>i.id);
+    if(itemIds.length){
+      const rs = await sb.from('substitutions').select('*').in('meal_item_id',itemIds);
+      subs = rs.data||[];
+    }
+  }
+  return (meals||[]).map(m=>({
+    ...m,
+    items: items.filter(i=>i.meal_id===m.id).map(i=>({
+      ...i, subs: subs.filter(s=>s.meal_item_id===i.id)
+    }))
+  }));
+}
+async function getActivePlan(studentId){
+  const { data } = await sb.from('meal_plans').select('*').eq('student_id',studentId).eq('active',true)
+    .order('created_at',{ascending:false}).limit(1).maybeSingle();
+  return data||null;
+}
+
+/* ════════════════════════════════════════════════════════════
+   COACH APP
+   ════════════════════════════════════════════════════════════ */
+function CoachApp({profile,setProfile}){
+  const [students,setStudents]=useState(null);
+  const [sel,setSel]=useState(null);
+  const [tab,setTab]=useState('students');
+  const [menu,setMenu]=useState(false);
+
+  const loadStudents=useCallback(async()=>{
+    const {data}=await sb.from('profiles').select('*').eq('coach_id',profile.id).eq('role','student').order('name');
+    setStudents(data||[]);
+  },[profile.id]);
+  useEffect(()=>{loadStudents();},[loadStudents]);
+
+  const nav=v=>{setTab(v);setSel(null);setMenu(false);};
+  const NAV=[['students','👥','Alunos'],['code','🔗','Meu código'],['profile','⚙️','Perfil']];
+
+  let content;
+  if(sel) content=<CoachStudentDetail key={sel.id} coach={profile} student={sel} onBack={()=>{setSel(null);loadStudents();}}/>;
+  else if(tab==='code') content=<CoachCode profile={profile}/>;
+  else if(tab==='profile') content=<CoachProfile profile={profile} setProfile={setProfile}/>;
+  else content=<CoachStudents students={students} onSelect={s=>{setSel(s);setMenu(false);}} code={profile.coach_code}/>;
+
+  return (
+    <div className="app">
+      <div className={`overlay ${menu?'show':''}`} onClick={()=>setMenu(false)}/>
+      <div className={`sidebar ${menu?'open':''}`}>
+        <div className="logo-row"><LogoMark size={40}/>
+          <div><div className="logo-name">MF NUTRITION</div><div className="logo-sub">Treinador</div></div></div>
+        {NAV.map(([v,i,l])=>(
+          <button key={v} className={`nav-btn ${!sel&&tab===v?'active':''}`} onClick={()=>nav(v)}>
+            <span className="nav-ico">{i}</span>{l}</button>))}
+        <div className="sidebar-footer">
+          <div style={{marginBottom:8}}>{profile.name}</div>
+          <button className="btn btn-ghost btn-sm btn-block" onClick={()=>sb.auth.signOut()}>Sair</button>
+        </div>
+      </div>
+      <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column'}}>
+        <div className="topbar"><button className="hamb" onClick={()=>setMenu(true)}>☰</button>
+          <LogoMark size={30}/><b style={{fontSize:14}}>MF Nutrition</b></div>
+        <div className="main">{content}</div>
+      </div>
+    </div>
+  );
+}
+
+function CoachStudents({students,onSelect,code}){
+  if(students===null) return <Spinner/>;
+  return (
+    <div>
+      <div className="abar"><div><div className="ph-title">Alunos</div>
+        <div className="ph-sub">{students.length} aluno{students.length!==1?'s':''} vinculado{students.length!==1?'s':''}</div></div></div>
+
+      {students.length===0 && (
+        <div className="card" style={{marginBottom:16}}>
+          <div className="sec-title">🔗 Como adicionar alunos</div>
+          <p style={{fontSize:13,lineHeight:1.7,color:'var(--text2)'}}>
+            Seus alunos se cadastram sozinhos no app e digitam o seu código abaixo para vincular a você.
+            Compartilhe o código por WhatsApp.</p>
+          <div className="code-box" style={{marginTop:14}}>
+            <div style={{fontSize:11,color:'var(--text2)',marginBottom:6}}>SEU CÓDIGO DE TREINADOR</div>
+            <div className="code-val">{code}</div>
+          </div>
+        </div>
+      )}
+
+      <div className="student-grid">
+        {students.map(s=>(
+          <div key={s.id} className="student-card" onClick={()=>onSelect(s)}>
+            <div style={{display:'flex',alignItems:'center',gap:12}}>
+              <div className="avatar">{s.photo_url?<img src={s.photo_url}/>:initials(s.name)}</div>
+              <div style={{minWidth:0}}>
+                <div style={{fontSize:15,fontWeight:700}}>{s.name||'(sem nome)'}</div>
+                <div style={{fontSize:12,color:'var(--text2)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                  {s.goal||s.email||'—'}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CoachCode({profile}){
+  const [copied,setCopied]=useState(false);
+  const copy=()=>{navigator.clipboard?.writeText(profile.coach_code).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),1500);});};
+  const share=()=>{
+    const txt=`Baixe o app MF Nutrition e use meu código de treinador: ${profile.coach_code}`;
+    if(navigator.share) navigator.share({text:txt}); else copy();
+  };
+  return (
+    <div style={{maxWidth:480}}>
+      <div className="ph-title" style={{marginBottom:18}}>Meu código</div>
+      <div className="card">
+        <p style={{fontSize:13,lineHeight:1.7,color:'var(--text2)',marginBottom:16}}>
+          Envie este código para seus alunos. Ao criar a conta, eles digitam o código e ficam vinculados a você automaticamente.</p>
+        <div className="code-box"><div style={{fontSize:11,color:'var(--text2)',marginBottom:8}}>CÓDIGO DE TREINADOR</div>
+          <div className="code-val">{profile.coach_code}</div></div>
+        <div className="bgroup" style={{marginTop:16}}>
+          <button className="btn btn-secondary" onClick={copy}>{copied?'✓ Copiado':'📋 Copiar'}</button>
+          <button className="btn btn-primary" onClick={share}>📤 Compartilhar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CoachProfile({profile,setProfile}){
+  const [f,setF]=useState({name:profile.name||'',phone:profile.phone||''});
+  const [saved,setSaved]=useState(false);
+  const save=async()=>{
+    await sb.from('profiles').update({name:f.name,phone:f.phone}).eq('id',profile.id);
+    setProfile({...profile,...f}); setSaved(true); setTimeout(()=>setSaved(false),1500);
+  };
+  return (
+    <div style={{maxWidth:460}}>
+      <div className="ph-title" style={{marginBottom:18}}>Perfil</div>
+      <div className="card" style={{display:'flex',flexDirection:'column',gap:14}}>
+        <FI label="Nome" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/>
+        <FI label="Telefone" value={f.phone} onChange={e=>setF({...f,phone:e.target.value})}/>
+        <div style={{fontSize:12,color:'var(--text3)'}}>E-mail: {profile.email}</div>
+        <button className="btn btn-primary" onClick={save}>{saved?'✓ Salvo':'Salvar'}</button>
+        <button className="btn btn-ghost" onClick={()=>sb.auth.signOut()}>Sair da conta</button>
+      </div>
+    </div>
+  );
+}
+
+/* ──────── Detalhe do aluno (treinador): abas Plano / Registros / Chat ──────── */
+function CoachStudentDetail({coach,student,onBack}){
+  const [tab,setTab]=useState('plan');
+  const TABS=[['plan','🍽️ Plano'],['logs','📊 Registros'],['chat','💬 Conversa']];
+  return (
+    <div>
+      <div className="abar">
+        <div><div className="breadcrumb" onClick={onBack}>← Alunos</div>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <div className="avatar">{student.photo_url?<img src={student.photo_url}/>:initials(student.name)}</div>
+            <div><div className="ph-title">{student.name||'(sem nome)'}</div>
+              <div className="ph-sub">{student.goal||student.email}</div></div>
+          </div>
+        </div>
+      </div>
+      <div className="seg" style={{maxWidth:420}}>
+        {TABS.map(([v,l])=><button key={v} className={tab===v?'on':''} onClick={()=>setTab(v)}>{l}</button>)}
+      </div>
+      {tab==='plan' && <PlanEditor coach={coach} student={student}/>}
+      {tab==='logs' && <CoachLogs student={student}/>}
+      {tab==='chat' && <ChatPanel me={coach} studentId={student.id} myName={coach.name}/>}
+    </div>
+  );
+}
+
+/* ──────── Editor de plano alimentar ──────── */
+function PlanEditor({coach,student}){
+  const [plan,setPlan]=useState(undefined); // undefined=loading, null=nenhum
+  const [meals,setMeals]=useState([]);
+  const [orig,setOrig]=useState({meals:[],items:[],subs:[]});
+  const [busy,setBusy]=useState(false);
+  const [saved,setSaved]=useState(false);
+
+  const load=useCallback(async()=>{
+    const p=await getActivePlan(student.id);
+    if(!p){ setPlan(null); setMeals([]); return; }
+    const tree=await loadPlanTree(p.id);
+    setPlan(p); setMeals(tree);
+    setOrig({
+      meals:tree.map(m=>m.id),
+      items:tree.flatMap(m=>m.items.map(i=>i.id)),
+      subs:tree.flatMap(m=>m.items.flatMap(i=>i.subs.map(s=>s.id)))
+    });
+  },[student.id]);
+  useEffect(()=>{load();},[load]);
+
+  const createPlan=async()=>{
+    const {data}=await sb.from('meal_plans').insert({
+      student_id:student.id, coach_id:coach.id, title:'Plano alimentar', water_goal_ml:3000, active:true
+    }).select().single();
+    setPlan(data); setMeals([]); setOrig({meals:[],items:[],subs:[]});
+  };
+
+  const addMeal=()=>setMeals(m=>[...m,{id:genId(),name:'Nova refeição',time:'',notes:'',items:[]}]);
+  const updMeal=(id,k,v)=>setMeals(m=>m.map(x=>x.id===id?{...x,[k]:v}:x));
+  const delMeal=id=>setMeals(m=>m.filter(x=>x.id!==id));
+  const addItem=mid=>setMeals(m=>m.map(x=>x.id===mid?{...x,items:[...x.items,{id:genId(),food:'',qty:'',kcal:'',protein:'',carb:'',fat:'',subs:[]}]}:x));
+  const updItem=(mid,iid,k,v)=>setMeals(m=>m.map(x=>x.id!==mid?x:{...x,items:x.items.map(i=>i.id===iid?{...i,[k]:v}:i)}));
+  const delItem=(mid,iid)=>setMeals(m=>m.map(x=>x.id!==mid?x:{...x,items:x.items.filter(i=>i.id!==iid)}));
+  const addSub=(mid,iid)=>setMeals(m=>m.map(x=>x.id!==mid?x:{...x,items:x.items.map(i=>i.id!==iid?i:{...i,subs:[...i.subs,{id:genId(),food:'',qty:'',kcal:'',protein:'',carb:'',fat:''}]})}));
+  const updSub=(mid,iid,sid,k,v)=>setMeals(m=>m.map(x=>x.id!==mid?x:{...x,items:x.items.map(i=>i.id!==iid?i:{...i,subs:i.subs.map(s=>s.id===sid?{...s,[k]:v}:s)})}));
+  const delSub=(mid,iid,sid)=>setMeals(m=>m.map(x=>x.id!==mid?x:{...x,items:x.items.map(i=>i.id!==iid?i:{...i,subs:i.subs.filter(s=>s.id!==sid)})}));
+
+  const save=async()=>{
+    setBusy(true);
+    try{
+      await sb.from('meal_plans').update({title:plan.title,notes:plan.notes,water_goal_ml:n0(plan.water_goal_ml)}).eq('id',plan.id);
+      const mealsPayload=meals.map((m,i)=>({id:m.id,plan_id:plan.id,name:m.name,time:m.time,notes:m.notes,order_index:i}));
+      if(mealsPayload.length) await sb.from('meals').upsert(mealsPayload);
+      const curM=meals.map(m=>m.id), delM=orig.meals.filter(id=>!curM.includes(id));
+      if(delM.length) await sb.from('meals').delete().in('id',delM);
+
+      const itemsPayload=[]; meals.forEach(m=>m.items.forEach((it,i)=>itemsPayload.push(
+        {id:it.id,meal_id:m.id,food:it.food,qty:it.qty,kcal:n0(it.kcal),protein:n0(it.protein),carb:n0(it.carb),fat:n0(it.fat),order_index:i})));
+      if(itemsPayload.length) await sb.from('meal_items').upsert(itemsPayload);
+      const curI=itemsPayload.map(i=>i.id), delI=orig.items.filter(id=>!curI.includes(id));
+      if(delI.length) await sb.from('meal_items').delete().in('id',delI);
+
+      const subsPayload=[]; meals.forEach(m=>m.items.forEach(it=>it.subs.forEach(s=>subsPayload.push(
+        {id:s.id,meal_item_id:it.id,food:s.food,qty:s.qty,kcal:n0(s.kcal),protein:n0(s.protein),carb:n0(s.carb),fat:n0(s.fat)}))));
+      if(subsPayload.length) await sb.from('substitutions').upsert(subsPayload);
+      const curS=subsPayload.map(s=>s.id), delS=orig.subs.filter(id=>!curS.includes(id));
+      if(delS.length) await sb.from('substitutions').delete().in('id',delS);
+
+      await load(); setSaved(true); setTimeout(()=>setSaved(false),1600);
+    }catch(e){ alert('Erro ao salvar: '+(e.message||e)); }
+    setBusy(false);
+  };
+
+  if(plan===undefined) return <Spinner/>;
+  if(plan===null) return (
+    <div className="empty"><div className="empty-icon">🍽️</div>
+      <div className="empty-title">Nenhum plano ainda</div>
+      <p style={{marginBottom:16,fontSize:13}}>Crie o plano alimentar deste aluno.</p>
+      <button className="btn btn-primary" onClick={createPlan}>＋ Criar plano</button></div>
+  );
+
+  const total=sumMeals(meals);
+  return (
+    <div>
+      <div className="card" style={{marginBottom:14}}>
+        <div className="fgrid">
+          <FI label="Título do plano" value={plan.title||''} onChange={e=>setPlan({...plan,title:e.target.value})}/>
+          <FI label="Meta de água" unit="ml" type="number" value={plan.water_goal_ml||''} onChange={e=>setPlan({...plan,water_goal_ml:e.target.value})}/>
+        </div>
+        <div style={{marginTop:12}}><FTA label="Observações gerais" value={plan.notes||''} onChange={e=>setPlan({...plan,notes:e.target.value})} placeholder="Beba água, evite frituras, etc."/></div>
+        <MacroRow s={total}/>
+        <div style={{fontSize:11,color:'var(--text3)',textAlign:'center'}}>Totais diários do plano</div>
+      </div>
+
+      {meals.map((m)=>{
+        const ms=sumItems(m.items);
+        return (
+          <div className="card" key={m.id} style={{marginTop:12}}>
+            <div className="fgrid" style={{gridTemplateColumns:'2fr 1fr auto'}}>
+              <FI label="Refeição" value={m.name} onChange={e=>updMeal(m.id,'name',e.target.value)} placeholder="Café da manhã"/>
+              <FI label="Horário" value={m.time||''} onChange={e=>updMeal(m.id,'time',e.target.value)} placeholder="08:00"/>
+              <div style={{display:'flex',alignItems:'flex-end'}}><button className="btn-icon" onClick={()=>delMeal(m.id)} title="Excluir refeição">🗑️</button></div>
+            </div>
+            <div style={{margin:'12px 0 4px',fontSize:11,color:'var(--text3)'}}>
+              {r0(ms.kcal)} kcal · P {r0(ms.protein)}g · C {r0(ms.carb)}g · G {r0(ms.fat)}g</div>
+
+            {m.items.map(it=>(
+              <div key={it.id} style={{background:'var(--bg3)',border:'1px solid var(--border)',borderRadius:10,padding:11,marginTop:9}}>
+                <div className="fgrid" style={{gridTemplateColumns:'2fr 1fr auto'}}>
+                  <FI value={it.food} onChange={e=>updItem(m.id,it.id,'food',e.target.value)} placeholder="Alimento"/>
+                  <FI value={it.qty} onChange={e=>updItem(m.id,it.id,'qty',e.target.value)} placeholder="Qtd (100g)"/>
+                  <div style={{display:'flex',alignItems:'center'}}><button className="btn-icon" onClick={()=>delItem(m.id,it.id)}>✕</button></div>
+                </div>
+                <div className="fgrid" style={{gridTemplateColumns:'repeat(4,1fr)',marginTop:8}}>
+                  <FI type="number" value={it.kcal} onChange={e=>updItem(m.id,it.id,'kcal',e.target.value)} placeholder="kcal"/>
+                  <FI type="number" value={it.protein} onChange={e=>updItem(m.id,it.id,'protein',e.target.value)} placeholder="Prot g"/>
+                  <FI type="number" value={it.carb} onChange={e=>updItem(m.id,it.id,'carb',e.target.value)} placeholder="Carb g"/>
+                  <FI type="number" value={it.fat} onChange={e=>updItem(m.id,it.id,'fat',e.target.value)} placeholder="Gord g"/>
+                </div>
+                {it.subs.map(s=>(
+                  <div key={s.id} className="fgrid" style={{gridTemplateColumns:'2fr 1fr auto',marginTop:7,paddingLeft:10,borderLeft:'2px solid var(--blue)'}}>
+                    <FI value={s.food} onChange={e=>updSub(m.id,it.id,s.id,'food',e.target.value)} placeholder="Substituir por…"/>
+                    <FI value={s.qty} onChange={e=>updSub(m.id,it.id,s.id,'qty',e.target.value)} placeholder="Qtd"/>
+                    <div style={{display:'flex',alignItems:'center'}}><button className="btn-icon" onClick={()=>delSub(m.id,it.id,s.id)}>✕</button></div>
+                  </div>
+                ))}
+                <button className="btn btn-ghost btn-sm" style={{marginTop:8}} onClick={()=>addSub(m.id,it.id)}>🔄 Adicionar substituição</button>
+              </div>
+            ))}
+            <button className="btn btn-secondary btn-sm" style={{marginTop:10}} onClick={()=>addItem(m.id)}>＋ Adicionar alimento</button>
+          </div>
+        );
+      })}
+
+      <button className="btn btn-secondary btn-block" style={{marginTop:14}} onClick={addMeal}>＋ Adicionar refeição</button>
+      <div style={{position:'sticky',bottom:0,padding:'14px 0',marginTop:8}}>
+        <button className="btn btn-primary btn-block" disabled={busy} onClick={save}>{busy?'Salvando…':saved?'✓ Plano salvo':'💾 Salvar plano'}</button>
+      </div>
+    </div>
+  );
+}
+
+/* ──────── Registros do aluno (visão treinador) ──────── */
+function CoachLogs({student}){
+  const [data,setData]=useState(null);
+  useEffect(()=>{(async()=>{
+    const [ph,cd,wl,ck]=await Promise.all([
+      sb.from('photos').select('*').eq('student_id',student.id).order('created_at',{ascending:false}).limit(30),
+      sb.from('cardio_logs').select('*').eq('student_id',student.id).order('day',{ascending:false}).limit(15),
+      sb.from('weight_logs').select('*').eq('student_id',student.id).order('day',{ascending:false}).limit(15),
+      sb.from('checkins').select('day').eq('student_id',student.id).order('day',{ascending:false}).limit(60),
+    ]);
+    setData({photos:ph.data||[],cardio:cd.data||[],weight:wl.data||[],checks:ck.data||[]});
+  })();},[student.id]);
+  if(!data) return <Spinner/>;
+  // aderência: dias distintos com check nos últimos 7
+  const days7=[...new Set(data.checks.map(c=>c.day))].filter(d=>{
+    const diff=(new Date(todayStr())-new Date(d))/86400000; return diff>=0 && diff<7; }).length;
+  return (
+    <div>
+      <div className="stat-grid">
+        <div className="stat"><div className="stat-lbl">Aderência (7d)</div><div className="stat-val">{days7}<span className="stat-unit">/7</span></div></div>
+        <div className="stat"><div className="stat-lbl">Cardios (15)</div><div className="stat-val">{data.cardio.length}</div></div>
+        <div className="stat"><div className="stat-lbl">Peso atual</div><div className="stat-val">{data.weight[0]?data.weight[0].weight:'—'}<span className="stat-unit">kg</span></div></div>
+        <div className="stat"><div className="stat-lbl">Fotos</div><div className="stat-val">{data.photos.length}</div></div>
+      </div>
+
+      <div className="card" style={{marginBottom:14}}>
+        <div className="sec-title">📷 Fotos enviadas</div>
+        {data.photos.length===0?<div className="muted" style={{fontSize:13}}>Nenhuma foto ainda.</div>:
+          <div className="photo-grid">{data.photos.map(p=>(
+            <a key={p.id} className="photo-thumb" href={p.url} target="_blank" rel="noopener">
+              <img src={p.url}/>
+              <div className="photo-cap">{p.kind==='progress'?'📊':'🍽️'} {fmtTime(p.created_at)}{p.caption?' · '+p.caption:''}</div>
+            </a>))}</div>}
+      </div>
+
+      <div className="card" style={{marginBottom:14}}>
+        <div className="sec-title">🏃 Cardio</div>
+        {data.cardio.length===0?<div className="muted" style={{fontSize:13}}>Nenhum registro.</div>:
+          data.cardio.map(c=>(
+            <div key={c.id} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
+              <span>{new Date(c.day+'T00:00').toLocaleDateString('pt-BR')} · {c.type}</span>
+              <span className="muted">{c.duration_min} min · {r0(c.kcal)} kcal</span>
+            </div>))}
+      </div>
+
+      <div className="card">
+        <div className="sec-title">⚖️ Peso</div>
+        {data.weight.length===0?<div className="muted" style={{fontSize:13}}>Nenhum registro.</div>:
+          data.weight.map(w=>(
+            <div key={w.id} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
+              <span>{new Date(w.day+'T00:00').toLocaleDateString('pt-BR')}</span>
+              <span className="muted">{w.weight} kg</span>
+            </div>))}
+      </div>
+    </div>
+  );
+}
+
+/* ──────── Chat treinador↔aluno (compartilhado) ──────── */
+function ChatPanel({me,studentId,myName}){
+  const [msgs,setMsgs]=useState(null);
+  const [txt,setTxt]=useState('');
+  const endRef=useRef();
+  const load=useCallback(async()=>{
+    const {data}=await sb.from('feedbacks').select('*, author:author_id(name)').eq('student_id',studentId).order('created_at');
+    setMsgs(data||[]);
+  },[studentId]);
+  useEffect(()=>{load();},[load]);
+  useEffect(()=>{endRef.current?.scrollIntoView();},[msgs]);
+  const send=async()=>{
+    const body=txt.trim(); if(!body) return; setTxt('');
+    await sb.from('feedbacks').insert({student_id:studentId,author_id:me.id,body});
+    load();
+  };
+  if(msgs===null) return <Spinner/>;
+  return (
+    <div className="card">
+      <div className="chat">
+        {msgs.length===0 && <div className="muted" style={{fontSize:13,textAlign:'center',padding:'20px 0'}}>Sem mensagens ainda. Diga oi! 👋</div>}
+        {msgs.map(m=>(
+          <div key={m.id} className={`bubble ${m.author_id===me.id?'me':'them'}`}>
+            <div className="who">{m.author_id===me.id?'Você':(m.author?.name||'')}</div>
+            {m.body}<div className="tm">{fmtTime(m.created_at)}</div>
+          </div>))}
+        <div ref={endRef}/>
+      </div>
+      <div style={{display:'flex',gap:8}}>
+        <input className="fi" value={txt} onChange={e=>setTxt(e.target.value)} placeholder="Escreva uma mensagem…"
+          onKeyDown={e=>{if(e.key==='Enter')send();}}/>
+        <button className="btn btn-primary" onClick={send}>➤</button>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════
+   STUDENT APP
+   ════════════════════════════════════════════════════════════ */
+function StudentApp({profile,setProfile}){
+  const [tab,setTab]=useState('today');
+  if(!profile.coach_id) return <LinkCoach profile={profile} setProfile={setProfile}/>;
+  const TABS=[['today','🍽️','Hoje'],['subs','🔄','Trocas'],['cardio','🏃','Cardio'],['progress','📈','Progresso'],['chat','💬','Coach']];
+  return (
+    <div>
+      <div className="topbar" style={{justifyContent:'center',gap:8}}>
+        <LogoMark size={30}/><b style={{fontSize:15}}>MF Nutrition</b>
+      </div>
+      <div className="stu-main">
+        {tab==='today' && <StudentToday profile={profile}/>}
+        {tab==='subs' && <StudentSubs profile={profile}/>}
+        {tab==='cardio' && <StudentCardio profile={profile}/>}
+        {tab==='progress' && <StudentProgress profile={profile} setProfile={setProfile}/>}
+        {tab==='chat' && <div><div className="ph-title" style={{marginBottom:14}}>Conversa com o coach</div>
+          <ChatPanel me={profile} studentId={profile.id} myName={profile.name}/></div>}
+      </div>
+      <div className="botnav"><div className="botnav-in">
+        {TABS.map(([v,i,l])=>(
+          <button key={v} className={tab===v?'on':''} onClick={()=>setTab(v)}>
+            <span className="bi">{i}</span>{l}</button>))}
+      </div></div>
+    </div>
+  );
+}
+
+function LinkCoach({profile,setProfile}){
+  const [code,setCode]=useState('');
+  const [msg,setMsg]=useState(null);
+  const [busy,setBusy]=useState(false);
+  const link=async()=>{
+    if(!code.trim()){setMsg({t:'error',x:'Digite o código.'});return;}
+    setBusy(true);
+    const {data,error}=await sb.rpc('link_coach',{p_code:code.trim()});
+    setBusy(false);
+    if(error||!data){setMsg({t:'error',x:'Código inválido. Confira com seu treinador.'});return;}
+    const {data:p}=await sb.from('profiles').select('*').eq('id',profile.id).maybeSingle();
+    setProfile(p);
+  };
+  return (
+    <div className="center-screen"><div className="auth-wrap"><div className="auth-card">
+      <div className="auth-logo"><LogoMark size={52}/><div className="logo-name" style={{fontSize:18}}>Vincular ao treinador</div></div>
+      {msg&&<div className={`alert alert-${msg.t==='error'?'error':'info'}`}>{msg.x}</div>}
+      <p style={{fontSize:13,color:'var(--text2)',lineHeight:1.6,marginBottom:14}}>Digite o código que seu treinador te passou para receber seu plano alimentar.</p>
+      <FI label="Código do treinador" value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="Ex: A1B2C3" style={{textTransform:'uppercase',letterSpacing:2}}/>
+      <button className="btn btn-primary btn-block" style={{marginTop:14}} disabled={busy} onClick={link}>{busy?'…':'Vincular'}</button>
+      <button className="btn btn-ghost btn-block" style={{marginTop:8}} onClick={()=>sb.auth.signOut()}>Sair</button>
+    </div></div></div>
+  );
+}
+
+/* ──────── Aluno: Hoje ──────── */
+function StudentToday({profile}){
+  const [plan,setPlan]=useState(undefined);
+  const [meals,setMeals]=useState([]);
+  const [checks,setChecks]=useState({}); // meal_id -> true
+  const [open,setOpen]=useState({});
+  const [water,setWater]=useState(0);
+  const [uploading,setUploading]=useState(false);
+  const fileRef=useRef();
+  const today=todayStr();
+
+  const load=useCallback(async()=>{
+    const p=await getActivePlan(profile.id);
+    if(!p){setPlan(null);return;}
+    const tree=await loadPlanTree(p.id);
+    const [ck,wl]=await Promise.all([
+      sb.from('checkins').select('meal_id').eq('student_id',profile.id).eq('day',today),
+      sb.from('water_logs').select('ml').eq('student_id',profile.id).eq('day',today).maybeSingle(),
+    ]);
+    setPlan(p); setMeals(tree);
+    setChecks(Object.fromEntries((ck.data||[]).map(c=>[c.meal_id,true])));
+    setWater(wl.data?.ml||0);
+  },[profile.id,today]);
+  useEffect(()=>{load();},[load]);
+
+  const toggle=async(mealId)=>{
+    const done=!checks[mealId];
+    setChecks(c=>({...c,[mealId]:done}));
+    if(done) await sb.from('checkins').upsert({student_id:profile.id,meal_id:mealId,day:today,done:true},{onConflict:'meal_id,day'});
+    else await sb.from('checkins').delete().eq('meal_id',mealId).eq('day',today);
+  };
+  const addWater=async(ml)=>{
+    const v=Math.max(0,water+ml); setWater(v);
+    await sb.from('water_logs').upsert({student_id:profile.id,day:today,ml:v},{onConflict:'student_id,day'});
+  };
+  const sendMealPhoto=async(file)=>{
+    if(!file) return; setUploading(true);
+    try{
+      const blob=await resizeImage(file);
+      const url=await uploadPhoto(profile.id,blob);
+      await sb.from('photos').insert({student_id:profile.id,coach_id:profile.coach_id,url,kind:'meal',caption:'Refeição'});
+      alert('Foto enviada ao seu treinador! ✅');
+    }catch(e){alert('Erro ao enviar: '+(e.message||e));}
+    setUploading(false);
+  };
+
+  if(plan===undefined) return <Spinner/>;
+  if(plan===null) return <div className="empty"><div className="empty-icon">🍽️</div>
+    <div className="empty-title">Plano a caminho</div>
+    <p style={{fontSize:13}}>Seu treinador ainda não montou seu plano. Volte em breve!</p></div>;
+
+  const total=sumMeals(meals);
+  const doneMeals=meals.filter(m=>checks[m.id]);
+  const consumed=sumMeals(doneMeals);
+  const waterGoal=plan.water_goal_ml||3000;
+  const R=34,C=2*Math.PI*R, pct=total.kcal>0?Math.min(consumed.kcal/total.kcal,1):0;
+
+  return (
+    <div>
+      <div style={{marginBottom:6}}><div className="ph-title">{plan.title||'Hoje'}</div>
+        <div className="ph-sub">{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</div></div>
+
+      <div className="kcal-hero" style={{margin:'14px 0'}}>
+        <div>
+          <div style={{fontSize:11,color:'var(--text2)',fontWeight:600,textTransform:'uppercase',letterSpacing:.5}}>Consumido hoje</div>
+          <div className="kcal-big">{r0(consumed.kcal)}<span style={{fontSize:15,color:'var(--text2)'}}> / {r0(total.kcal)} kcal</span></div>
+          <div style={{fontSize:12,color:'var(--text2)',marginTop:6}}>{doneMeals.length} de {meals.length} refeições ✓</div>
+        </div>
+        <div style={{position:'relative',width:84,height:84,flexShrink:0}}>
+          <svg width="84" height="84" className="ring">
+            <circle className="ring-bg" cx="42" cy="42" r={R} fill="none" strokeWidth="8"/>
+            <circle className="ring-fg" cx="42" cy="42" r={R} fill="none" strokeWidth="8" strokeDasharray={C} strokeDashoffset={C*(1-pct)}/>
+          </svg>
+          <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:16}}>{Math.round(pct*100)}%</div>
+        </div>
+      </div>
+
+      <MacroRow s={consumed}/>
+      <div style={{fontSize:11,color:'var(--text3)',textAlign:'center',marginTop:-6,marginBottom:14}}>
+        Meta: P {r0(total.protein)}g · C {r0(total.carb)}g · G {r0(total.fat)}g</div>
+
+      {/* Água */}
+      <div className="card" style={{marginBottom:16,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+        <div><div style={{fontSize:13,fontWeight:700}}>💧 Água</div>
+          <div style={{fontSize:12,color:'var(--text2)'}}>{water} / {waterGoal} ml</div>
+          <div className="bar" style={{width:120}}><div className="bar-fill" style={{width:`${Math.min(100,water/waterGoal*100)}%`,background:'var(--blue)'}}/></div></div>
+        <div className="bgroup">
+          <button className="btn-icon" onClick={()=>addWater(-250)}>−</button>
+          <button className="btn btn-secondary btn-sm" onClick={()=>addWater(250)}>+250ml</button>
+        </div>
+      </div>
+
+      {/* Refeições */}
+      {meals.map(m=>{
+        const ms=sumItems(m.items), done=!!checks[m.id], isOpen=open[m.id];
+        return (
+          <div className="meal" key={m.id}>
+            <div className={`meal-head ${done?'done':''}`} onClick={()=>setOpen(o=>({...o,[m.id]:!o[m.id]}))}>
+              <div className={`check ${done?'on':''}`} onClick={e=>{e.stopPropagation();toggle(m.id);}}>✓</div>
+              <div style={{flex:1,minWidth:0}}>
+                {m.time&&<div className="meal-time">{m.time}</div>}
+                <div className="meal-name">{m.name}</div>
+                <div className="meal-kcal">{r0(ms.kcal)} kcal · P{r0(ms.protein)} C{r0(ms.carb)} G{r0(ms.fat)}</div>
+              </div>
+              <div style={{color:'var(--text3)',fontSize:13}}>{isOpen?'▲':'▼'}</div>
+            </div>
+            {isOpen && (
+              <div className="meal-body">
+                {m.notes&&<div className="alert alert-info" style={{margin:'10px 0'}}>{m.notes}</div>}
+                {m.items.map(it=>(
+                  <div className="item-row" key={it.id}>
+                    <span className="item-dot">•</span>
+                    <div style={{flex:1}}>
+                      <div className="item-food">{it.food} {it.qty&&<span className="item-qty">— {it.qty}</span>}</div>
+                      <div className="item-macros">{r0(it.kcal)} kcal · P{r0(it.protein)} C{r0(it.carb)} G{r0(it.fat)}</div>
+                      {it.subs.length>0 && <details><summary className="sub-link">🔄 {it.subs.length} substituiç{it.subs.length>1?'ões':'ão'}</summary>
+                        <div className="sub-box"><div className="st">Pode trocar por</div>
+                          {it.subs.map(s=><div key={s.id} className="sub-item">↳ {s.food}{s.qty?` — ${s.qty}`:''} <span style={{color:'var(--text3)'}}>({r0(s.kcal)} kcal)</span></div>)}
+                        </div></details>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={e=>sendMealPhoto(e.target.files[0])}/>
+      <button className="btn btn-secondary btn-block" style={{marginTop:14}} disabled={uploading} onClick={()=>fileRef.current.click()}>
+        {uploading?'Enviando…':'📷 Enviar foto da refeição'}</button>
+    </div>
+  );
+}
+
+/* ──────── Aluno: Trocas (tabela de substituição) ──────── */
+function StudentSubs({profile}){
+  const [meals,setMeals]=useState(undefined);
+  useEffect(()=>{(async()=>{
+    const p=await getActivePlan(profile.id);
+    if(!p){setMeals(null);return;}
+    setMeals(await loadPlanTree(p.id));
+  })();},[profile.id]);
+  if(meals===undefined) return <Spinner/>;
+  if(!meals) return <div className="empty"><div className="empty-icon">🔄</div><div className="empty-title">Sem plano ainda</div></div>;
+  const withSubs=meals.map(m=>({...m,items:m.items.filter(i=>i.subs.length>0)})).filter(m=>m.items.length>0);
+  return (
+    <div>
+      <div className="ph-title" style={{marginBottom:4}}>Tabela de substituições</div>
+      <div className="ph-sub" style={{marginBottom:16}}>Opções equivalentes para cada alimento</div>
+      {withSubs.length===0 && <div className="empty"><div className="empty-icon">🍽️</div>
+        <div className="empty-title">Sem substituições cadastradas</div>
+        <p style={{fontSize:13}}>Peça ao seu treinador para adicionar trocas no plano.</p></div>}
+      {withSubs.map(m=>(
+        <div className="card" key={m.id} style={{marginBottom:12}}>
+          <div className="sec-title">{m.time?m.time+' · ':''}{m.name}</div>
+          {m.items.map(it=>(
+            <div key={it.id} style={{marginBottom:12}}>
+              <div className="item-food" style={{marginBottom:5}}>{it.food} {it.qty&&<span className="item-qty">— {it.qty}</span>}</div>
+              {it.subs.map(s=>(
+                <div key={s.id} className="sub-item" style={{paddingLeft:12,borderLeft:'2px solid var(--blue)',marginBottom:3}}>
+                  ↳ {s.food}{s.qty?` — ${s.qty}`:''} <span style={{color:'var(--text3)'}}>({r0(s.kcal)} kcal · P{r0(s.protein)} C{r0(s.carb)} G{r0(s.fat)})</span>
+                </div>))}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ──────── Aluno: Cardio ──────── */
+function StudentCardio({profile}){
+  const [logs,setLogs]=useState(null);
+  const [f,setF]=useState({type:'Esteira',duration_min:'',kcal:'',notes:''});
+  const today=todayStr();
+  const load=useCallback(async()=>{
+    const {data}=await sb.from('cardio_logs').select('*').eq('student_id',profile.id).order('day',{ascending:false}).limit(30);
+    setLogs(data||[]);
+  },[profile.id]);
+  useEffect(()=>{load();},[load]);
+  const add=async()=>{
+    if(!f.duration_min){alert('Informe a duração.');return;}
+    await sb.from('cardio_logs').insert({student_id:profile.id,day:today,type:f.type,duration_min:n0(f.duration_min),kcal:n0(f.kcal),notes:f.notes});
+    setF({type:f.type,duration_min:'',kcal:'',notes:''}); load();
+  };
+  if(logs===null) return <Spinner/>;
+  const weekKcal=logs.filter(l=>(new Date(todayStr())-new Date(l.day))/86400000<7).reduce((a,l)=>a+n0(l.kcal),0);
+  const weekMin=logs.filter(l=>(new Date(todayStr())-new Date(l.day))/86400000<7).reduce((a,l)=>a+n0(l.duration_min),0);
+  return (
+    <div>
+      <div className="ph-title" style={{marginBottom:14}}>Cardio</div>
+      <div className="stat-grid">
+        <div className="stat"><div className="stat-lbl">Esta semana</div><div className="stat-val">{r0(weekMin)}<span className="stat-unit">min</span></div></div>
+        <div className="stat"><div className="stat-lbl">Calorias (7d)</div><div className="stat-val">{r0(weekKcal)}<span className="stat-unit">kcal</span></div></div>
+      </div>
+      <div className="card" style={{marginBottom:14}}>
+        <div className="sec-title">＋ Registrar cardio</div>
+        <div className="fgrid">
+          <div className="fg"><label className="flbl">Tipo</label>
+            <select className="fi" value={f.type} onChange={e=>setF({...f,type:e.target.value})}>
+              {['Esteira','Bike','Elíptico','Corrida ao ar livre','Caminhada','HIIT','Escada','Outro'].map(t=><option key={t}>{t}</option>)}
+            </select></div>
+          <FI label="Duração" unit="min" type="number" value={f.duration_min} onChange={e=>setF({...f,duration_min:e.target.value})}/>
+          <FI label="Calorias" unit="kcal" type="number" value={f.kcal} onChange={e=>setF({...f,kcal:e.target.value})}/>
+        </div>
+        <div style={{marginTop:10}}><FI label="Observação" value={f.notes} onChange={e=>setF({...f,notes:e.target.value})} placeholder="Opcional"/></div>
+        <button className="btn btn-green btn-block" style={{marginTop:12}} onClick={add}>Registrar</button>
+      </div>
+      <div className="card">
+        <div className="sec-title">Histórico</div>
+        {logs.length===0?<div className="muted" style={{fontSize:13}}>Nenhum cardio ainda.</div>:
+          logs.map(l=>(
+            <div key={l.id} style={{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
+              <span>{new Date(l.day+'T00:00').toLocaleDateString('pt-BR')} · <b>{l.type}</b></span>
+              <span className="muted">{l.duration_min}min · {r0(l.kcal)}kcal</span>
+            </div>))}
+      </div>
+    </div>
+  );
+}
+
+/* ──────── Aluno: Progresso (peso + fotos) ──────── */
+function StudentProgress({profile,setProfile}){
+  const [weights,setWeights]=useState(null);
+  const [photos,setPhotos]=useState([]);
+  const [w,setW]=useState('');
+  const [uploading,setUploading]=useState(false);
+  const fileRef=useRef();
+  const today=todayStr();
+  const load=useCallback(async()=>{
+    const [rw,rp]=await Promise.all([
+      sb.from('weight_logs').select('*').eq('student_id',profile.id).order('day',{ascending:false}).limit(30),
+      sb.from('photos').select('*').eq('student_id',profile.id).eq('kind','progress').order('created_at',{ascending:false}).limit(30),
+    ]);
+    setWeights(rw.data||[]); setPhotos(rp.data||[]);
+  },[profile.id]);
+  useEffect(()=>{load();},[load]);
+  const addWeight=async()=>{
+    if(!w){return;}
+    await sb.from('weight_logs').upsert({student_id:profile.id,day:today,weight:n0(w)},{onConflict:'student_id,day'});
+    setW(''); load();
+  };
+  const sendPhoto=async(file)=>{
+    if(!file)return; setUploading(true);
+    try{ const blob=await resizeImage(file); const url=await uploadPhoto(profile.id,blob);
+      await sb.from('photos').insert({student_id:profile.id,coach_id:profile.coach_id,url,kind:'progress',caption:'Progresso'});
+      load();
+    }catch(e){alert('Erro: '+(e.message||e));}
+    setUploading(false);
+  };
+  if(weights===null) return <Spinner/>;
+  const cur=weights[0]?.weight, first=weights[weights.length-1]?.weight;
+  const diff=(cur!=null&&first!=null)?+(cur-first).toFixed(1):null;
+  return (
+    <div>
+      <div className="ph-title" style={{marginBottom:14}}>Progresso</div>
+      <div className="stat-grid">
+        <div className="stat"><div className="stat-lbl">Peso atual</div><div className="stat-val">{cur??'—'}<span className="stat-unit">kg</span></div></div>
+        <div className="stat"><div className="stat-lbl">Variação total</div><div className="stat-val" style={{color:diff==null?'':diff<=0?'var(--sage)':'var(--accent3)'}}>{diff==null?'—':(diff>0?'+':'')+diff}<span className="stat-unit">kg</span></div></div>
+        <div className="stat"><div className="stat-lbl">Registros</div><div className="stat-val">{weights.length}</div></div>
+      </div>
+      <div className="card" style={{marginBottom:14}}>
+        <div className="sec-title">⚖️ Registrar peso de hoje</div>
+        <div style={{display:'flex',gap:8}}>
+          <FI type="number" value={w} onChange={e=>setW(e.target.value)} placeholder="Ex: 78.5" unit="kg"/>
+          <div style={{display:'flex',alignItems:'flex-end'}}><button className="btn btn-green" onClick={addWeight}>Salvar</button></div>
+        </div>
+        {weights.length>0 && <WeightChart data={[...weights].reverse()}/>}
+      </div>
+      <div className="card">
+        <div className="sec-title">📸 Fotos de progresso</div>
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={e=>sendPhoto(e.target.files[0])}/>
+        <button className="btn btn-secondary btn-block" disabled={uploading} onClick={()=>fileRef.current.click()}>{uploading?'Enviando…':'＋ Adicionar foto'}</button>
+        {photos.length>0 && <div className="photo-grid" style={{marginTop:12}}>
+          {photos.map(p=><a key={p.id} className="photo-thumb" href={p.url} target="_blank" rel="noopener"><img src={p.url}/>
+            <div className="photo-cap">{fmtTime(p.created_at)}</div></a>)}
+        </div>}
+      </div>
+    </div>
+  );
+}
+
+function WeightChart({data}){
+  if(data.length<2) return null;
+  const W=300,H=90,pad=8;
+  const vals=data.map(d=>n0(d.weight));
+  const mn=Math.min(...vals),mx=Math.max(...vals),rng=(mx-mn)||1;
+  const pts=data.map((d,i)=>{
+    const x=pad+(i/(data.length-1))*(W-2*pad);
+    const y=pad+(1-(n0(d.weight)-mn)/rng)*(H-2*pad);
+    return [x,y];
+  });
+  const path=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',marginTop:12,overflow:'visible'}}>
+      <path d={path} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      {pts.map((p,i)=><circle key={i} cx={p[0]} cy={p[1]} r="2.6" fill="var(--accent)"/>)}
+    </svg>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Root/>);
+</script>
+</body>
+</html>
