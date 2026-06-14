@@ -621,10 +621,12 @@ function CoachCode({profile}){
 }
 
 function CoachProfile({profile,setProfile}){
-  const [f,setF]=useState({name:profile.name||'',phone:profile.phone||''});
+  const [f,setF]=useState({name:profile.name||'',phone:profile.phone||'',instagram:profile.instagram||''});
   const [saved,setSaved]=useState(false);
   const save=async()=>{
-    await sb.from('profiles').update({name:f.name,phone:f.phone}).eq('id',profile.id);
+    try{ await sb.from('profiles').update({name:f.name,phone:f.phone,instagram:f.instagram.replace(/^@/,'')||null}).eq('id',profile.id); }
+    catch(e){ await sb.from('profiles').update({name:f.name,phone:f.phone}).eq('id',profile.id);
+      alert('Para salvar o @ do Instagram, rode o patch "patch-student-features.sql" no Supabase.'); }
     setProfile({...profile,...f}); setSaved(true); setTimeout(()=>setSaved(false),1500);
   };
   return (
@@ -633,6 +635,7 @@ function CoachProfile({profile,setProfile}){
       <div className="card" style={{display:'flex',flexDirection:'column',gap:14}}>
         <FI label="Nome" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/>
         <FI label="Telefone" value={f.phone} onChange={e=>setF({...f,phone:e.target.value})}/>
+        <FI label="Instagram (@)" value={f.instagram} onChange={e=>setF({...f,instagram:e.target.value})} placeholder="seu.perfil — aparece no card que o aluno posta"/>
         <div style={{fontSize:12,color:'var(--text3)'}}>E-mail: {profile.email}</div>
         <button className="btn btn-primary" onClick={save}>{saved?'✓ Salvo':'Salvar'}</button>
         <button className="btn btn-ghost" onClick={()=>sb.auth.signOut()}>Sair da conta</button>
@@ -1079,7 +1082,9 @@ function PlanEditor({coach,student}){
       if(itemsP.length) await sb.from('template_items').insert(itemsP);
       if(subsP.length) await sb.from('template_subs').insert(subsP);
       alert('Cronograma “'+title+'” salvo! Você já pode aplicar em outros alunos.');
-    }catch(e){ alert('Erro ao salvar cronograma: '+(e.message||e)); }
+    }catch(e){ const m=(e.message||''+e); alert(/find the table|does not exist|PGRST205|42P01|42703/.test(m)
+        ? 'Para salvar cronogramas, rode uma vez o arquivo "ATUALIZAR-BANCO.sql" no SQL Editor do Supabase.'
+        : 'Erro ao salvar cronograma: '+m); }
   };
 
   if(plan===undefined) return <Spinner/>;
@@ -1142,7 +1147,9 @@ function TemplateEditor({coach,template,onBack}){
       if(itemsP.length) await sb.from('template_items').insert(itemsP);
       if(subsP.length) await sb.from('template_subs').insert(subsP);
       setSaved(true); setTimeout(onBack,700);
-    }catch(e){ alert('Erro ao salvar: '+(e.message||e)); setBusy(false); }
+    }catch(e){ const m=(e.message||''+e); alert(/find the table|does not exist|PGRST205|42P01|42703/.test(m)
+        ? 'Para salvar cronogramas, rode uma vez o arquivo "ATUALIZAR-BANCO.sql" no SQL Editor do Supabase.'
+        : 'Erro ao salvar: '+m); setBusy(false); }
   };
   if(meals===undefined) return <Spinner/>;
   const total=sumMeals(meals);
@@ -1298,6 +1305,211 @@ function ChatPanel({me,studentId,myName}){
 /* ════════════════════════════════════════════════════════════
    STUDENT APP
    ════════════════════════════════════════════════════════════ */
+/* ════════════════════ CONQUISTAS / STREAK ════════════════════ */
+const dayKey = d => d.toLocaleDateString('en-CA');
+function computeDoneDays(checkins, mealsCount){
+  if(!mealsCount) return new Set();
+  const by={}; checkins.forEach(c=>{ (by[c.day]=by[c.day]||new Set()).add(c.meal_id); });
+  return new Set(Object.entries(by).filter(([,s])=>s.size>=mealsCount).map(([d])=>d));
+}
+function streakFrom(doneDays){
+  let n=0; const d=new Date(todayStr()+'T00:00');
+  if(!doneDays.has(dayKey(d))) d.setDate(d.getDate()-1);
+  while(doneDays.has(dayKey(d))){ n++; d.setDate(d.getDate()-1); }
+  return n;
+}
+const MEDALS=[
+  {ic:'🌱',nm:'Primeiro dia',need:1,kind:'total'},
+  {ic:'🔥',nm:'3 dias seguidos',need:3,kind:'streak'},
+  {ic:'⚡',nm:'1 semana',need:7,kind:'streak'},
+  {ic:'💪',nm:'2 semanas',need:14,kind:'streak'},
+  {ic:'🏅',nm:'30 dias batidos',need:30,kind:'total'},
+  {ic:'👑',nm:'30 dias seguidos',need:30,kind:'streak'},
+];
+
+/* gera o card de imagem p/ Instagram */
+function generateShareImage({name,streak,adherence,weightLost,coach}){
+  return new Promise(res=>{
+    const W=1080,H=1350,c=document.createElement('canvas'); c.width=W;c.height=H;
+    const x=c.getContext('2d');
+    x.fillStyle='#f7f3ef'; x.fillRect(0,0,W,H);
+    // header vinho
+    x.fillStyle='#5a1e2e'; x.fillRect(0,0,W,300);
+    x.textAlign='center';
+    x.fillStyle='#f7f3ef'; x.font='600 120px Georgia,serif'; x.fillText('M', W/2-44, 200);
+    x.fillStyle='#c2a269'; x.font='500 130px Georgia,serif'; x.fillText('F', W/2+44, 196);
+    x.fillStyle='#f7f3ef'; x.font='600 30px Inter,Arial,sans-serif';
+    x.fillText('N U T R I T I O N', W/2, 262);
+    // hero streak
+    x.fillStyle='#5a1e2e'; x.font='600 230px Georgia,serif'; x.fillText('🔥'+streak, W/2, 660);
+    x.fillStyle='#1f1a1c'; x.font='600 46px Inter,Arial,sans-serif'; x.fillText('DIAS SEGUIDOS NO FOCO', W/2, 740);
+    x.fillStyle='#8a7d76'; x.font='400 40px Inter,Arial,sans-serif'; x.fillText((name||'').split(' ')[0], W/2, 815);
+    // stats
+    let sy=940;
+    x.font='400 42px Inter,Arial,sans-serif'; x.fillStyle='#1f1a1c';
+    if(adherence!=null){ x.fillText('✅  '+adherence+'% de adesão', W/2, sy); sy+=70; }
+    if(weightLost!=null && weightLost>0){ x.fillText('⚖️  '+weightLost.toFixed(1)+' kg eliminados', W/2, sy); sy+=70; }
+    // divisor dourado
+    x.strokeStyle='#c2a269'; x.lineWidth=2; x.beginPath(); x.moveTo(W/2-90,1130); x.lineTo(W/2+90,1130); x.stroke();
+    // footer
+    x.fillStyle='#5a1e2e'; x.font='600 40px Inter,Arial,sans-serif';
+    x.fillText(coach?('Acompanhamento com '+coach):'#MFNutrition', W/2, 1210);
+    x.fillStyle='#b0894f'; x.font='400 34px Inter,Arial,sans-serif'; x.fillText('#MFNutrition', W/2, 1270);
+    c.toBlob(b=>res(b),'image/png');
+  });
+}
+async function shareCard(opts){
+  const blob=await generateShareImage(opts);
+  const file=new File([blob],'mf-nutrition.png',{type:'image/png'});
+  const text=(opts.coach?('Treinando firme com '+opts.coach+' '):'')+'🔥 #MFNutrition';
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file],text}); return; }catch(e){ if(e.name==='AbortError') return; }
+  }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='mf-nutrition.png'; a.click();
+}
+
+/* banner de streak (Hoje) */
+function StreakBanner({profile,mealsCount}){
+  const [streak,setStreak]=useState(null);
+  useEffect(()=>{ if(!mealsCount){setStreak(0);return;}
+    const since=new Date(); since.setDate(since.getDate()-90);
+    sb.from('checkins').select('meal_id,day').eq('student_id',profile.id).gte('day',dayKey(since))
+      .then(({data})=>setStreak(streakFrom(computeDoneDays(data||[],mealsCount))));
+  },[profile.id,mealsCount]);
+  if(streak===null||streak===0) return null;
+  return (
+    <div style={{display:'flex',alignItems:'center',gap:10,background:'var(--accent-dim)',border:'1px solid var(--border)',borderRadius:14,padding:'12px 16px',marginBottom:14}}>
+      <span style={{fontSize:26}}>🔥</span>
+      <div><div style={{fontFamily:'var(--serif)',fontSize:20,fontWeight:600,lineHeight:1}}>{streak} dia{streak>1?'s':''} seguido{streak>1?'s':''}</div>
+        <div style={{fontSize:12,color:'var(--text2)'}}>Mantenha a sequência batendo todas as refeições!</div></div>
+    </div>
+  );
+}
+
+/* lembretes de refeição (Hoje) */
+function MealReminders({profile,meals}){
+  const [on,setOn]=useState(()=>localStorage.getItem('mfn_rem_'+profile.id)==='1');
+  const timers=useRef([]);
+  const times=meals.map(m=>m.time).filter(Boolean).sort();
+  const now=new Date(); const nowMin=now.getHours()*60+now.getMinutes();
+  const toMin=t=>{const[h,m]=t.split(':').map(Number); return (h||0)*60+(m||0);};
+  const next=meals.filter(m=>m.time&&toMin(m.time)>nowMin).sort((a,b)=>toMin(a.time)-toMin(b.time))[0];
+  const schedule=()=>{
+    timers.current.forEach(clearTimeout); timers.current=[];
+    meals.forEach(m=>{ if(!m.time) return; const diff=(toMin(m.time)-nowMin)*60000;
+      if(diff>0 && diff<24*3600000){ timers.current.push(setTimeout(()=>{
+        try{ new Notification('MF Nutrition · '+m.name, {body:'Hora da sua refeição 🍽️', icon:'./icons/icon-192.png'}); }catch(e){}
+      },diff)); }});
+  };
+  const toggle=async()=>{
+    if(!on){
+      if(!('Notification' in window)){ alert('Seu navegador não suporta notificações.'); return; }
+      const perm=await Notification.requestPermission();
+      if(perm!=='granted'){ alert('Permissão de notificação negada.'); return; }
+      localStorage.setItem('mfn_rem_'+profile.id,'1'); setOn(true); schedule();
+    } else { localStorage.removeItem('mfn_rem_'+profile.id); setOn(false); timers.current.forEach(clearTimeout); }
+  };
+  useEffect(()=>{ if(on) schedule(); return ()=>timers.current.forEach(clearTimeout); },[on,meals.length]);
+  if(times.length===0) return null;
+  return (
+    <div className="card" style={{marginBottom:16,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+      <div><div style={{fontSize:13,fontWeight:700}}>🔔 Lembretes de refeição</div>
+        <div style={{fontSize:12,color:'var(--text2)',marginTop:2}}>{next?`Próxima: ${next.name} às ${next.time}`:'Sem próximas refeições hoje'}</div></div>
+      <button className={`btn btn-sm ${on?'btn-green':'btn-secondary'}`} onClick={toggle}>{on?'✓ Ativados':'Ativar'}</button>
+    </div>
+  );
+}
+
+/* meta de peso + marcos (Progresso) */
+function WeightGoal({profile,weights,setProfile}){
+  const [target,setTarget]=useState(profile.target_weight||'');
+  const [editing,setEditing]=useState(!profile.target_weight);
+  const start=weights.length?n0(weights[weights.length-1].weight):(profile.start_weight||null);
+  const current=weights.length?n0(weights[0].weight):null;
+  const tgt=n0(profile.target_weight);
+  const save=async()=>{
+    const t=n0(target); if(!t){alert('Informe a meta.');return;}
+    try{ await sb.from('profiles').update({target_weight:t}).eq('id',profile.id);
+      setProfile({...profile,target_weight:t}); setEditing(false);
+    }catch(e){ alert('Rode o patch "patch-student-features.sql" no Supabase p/ habilitar a meta.\n\n'+(e.message||e)); }
+  };
+  if(editing) return (
+    <div className="card" style={{marginBottom:14}}>
+      <div className="sec-title">🎯 Sua meta de peso</div>
+      <div style={{display:'flex',gap:8}}>
+        <FI type="number" value={target} onChange={e=>setTarget(e.target.value)} placeholder="Ex: 72" unit="kg"/>
+        <div style={{display:'flex',alignItems:'flex-end'}}><button className="btn btn-primary" onClick={save}>Salvar</button></div>
+      </div>
+    </div>
+  );
+  if(!tgt||current==null||start==null) return null;
+  const totalDelta=start-tgt, doneDelta=start-current;
+  const pct=totalDelta!==0?Math.max(0,Math.min(100,(doneDelta/totalDelta)*100)):0;
+  const falta=Math.abs(current-tgt);
+  return (
+    <div className="card" style={{marginBottom:14}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div className="sec-title" style={{border:'none',margin:0,padding:0}}>🎯 Meta de peso</div>
+        <button className="btn-icon btn-sm" onClick={()=>setEditing(true)} title="Editar meta">✏️</button>
+      </div>
+      <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'var(--text2)',margin:'12px 0 6px'}}>
+        <span>Início: <b style={{color:'var(--text)'}}>{start}kg</b></span>
+        <span style={{color:'var(--accent)',fontWeight:700}}>{Math.round(pct)}%</span>
+        <span>Meta: <b style={{color:'var(--text)'}}>{tgt}kg</b></span>
+      </div>
+      <div className="bar" style={{height:12}}><div className="bar-fill" style={{width:pct+'%',background:'linear-gradient(90deg,var(--accent),var(--gold))'}}/></div>
+      <div style={{textAlign:'center',marginTop:10,fontSize:13}}>
+        {falta<=0.05? <span style={{color:'var(--sage)',fontWeight:700}}>🎉 Meta atingida! Parabéns!</span>
+          : <>Faltam <b style={{fontFamily:'var(--serif)',fontSize:18,color:'var(--accent)'}}>{falta.toFixed(1)} kg</b> 💪</>}
+      </div>
+    </div>
+  );
+}
+
+/* conquistas + medalhas + compartilhar (Progresso) */
+function Achievements({profile,weights}){
+  const [d,setD]=useState(null);
+  useEffect(()=>{(async()=>{
+    const p=await getActivePlan(profile.id);
+    const mealsCount=p?(await loadPlanTree(p.id)).length:0;
+    const since=new Date(); since.setDate(since.getDate()-180);
+    const [ck,co]=await Promise.all([
+      sb.from('checkins').select('meal_id,day').eq('student_id',profile.id).gte('day',dayKey(since)),
+      profile.coach_id?sb.from('profiles').select('name,instagram').eq('id',profile.coach_id).maybeSingle():Promise.resolve({data:null}),
+    ]);
+    const done=computeDoneDays(ck.data||[],mealsCount);
+    setD({streak:streakFrom(done), total:done.size, coach:co.data});
+  })();},[profile.id]);
+  if(!d) return null;
+  const coachHandle=d.coach?.instagram ? '@'+d.coach.instagram.replace(/^@/,'') : (d.coach?.name||null);
+  const start=weights.length?n0(weights[weights.length-1].weight):null;
+  const current=weights.length?n0(weights[0].weight):null;
+  const weightLost=(start!=null&&current!=null)?+(start-current).toFixed(1):null;
+  const earned=m=>(m.kind==='streak'?d.streak:d.total)>=m.need;
+  const share=()=>shareCard({name:profile.name,streak:d.streak,
+    adherence:null,weightLost,coach:coachHandle});
+  return (
+    <div className="card" style={{marginBottom:14}}>
+      <div className="sec-title">🏆 Conquistas</div>
+      <div style={{display:'flex',gap:14,alignItems:'center',marginBottom:14}}>
+        <div style={{textAlign:'center'}}><div style={{fontFamily:'var(--serif)',fontSize:34,fontWeight:600,color:'var(--accent)',lineHeight:1}}>🔥{d.streak}</div>
+          <div style={{fontSize:10,color:'var(--text2)',fontWeight:600,textTransform:'uppercase'}}>Seguidos</div></div>
+        <div style={{textAlign:'center'}}><div style={{fontFamily:'var(--serif)',fontSize:34,fontWeight:600,lineHeight:1}}>{d.total}</div>
+          <div style={{fontSize:10,color:'var(--text2)',fontWeight:600,textTransform:'uppercase'}}>Dias batidos</div></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:9,marginBottom:14}}>
+        {MEDALS.map(m=>{const ok=earned(m);return(
+          <div key={m.nm} style={{textAlign:'center',padding:'12px 6px',borderRadius:12,background:ok?'var(--gold-dim)':'var(--bg3)',border:ok?'1px solid var(--gold)':'1px solid var(--border)',opacity:ok?1:.45}}>
+            <div style={{fontSize:26,filter:ok?'none':'grayscale(1)'}}>{m.ic}</div>
+            <div style={{fontSize:10.5,color:'var(--text2)',marginTop:4,fontWeight:600}}>{m.nm}</div>
+          </div>);})}
+      </div>
+      <button className="btn btn-primary btn-block" onClick={share}>📲 Compartilhar no Instagram{coachHandle?' · marque '+coachHandle:''}</button>
+      <div style={{fontSize:11,color:'var(--text3)',textAlign:'center',marginTop:7}}>Gera um card lindo da sua evolução pra postar nos stories 🔥</div>
+    </div>
+  );
+}
+
 function StudentApp({profile,setProfile}){
   const [tab,setTab]=useState('today');
   if(!profile.coach_id) return <LinkCoach profile={profile} setProfile={setProfile}/>;
@@ -1408,8 +1620,11 @@ function StudentToday({profile}){
 
   return (
     <div>
-      <div style={{marginBottom:6}}><div className="ph-title">{plan.title||'Hoje'}</div>
+      <div style={{marginBottom:14}}><div className="ph-title">{plan.title||'Hoje'}</div>
         <div className="ph-sub">{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</div></div>
+
+      <StreakBanner profile={profile} mealsCount={meals.length}/>
+      <MealReminders profile={profile} meals={meals}/>
 
       <div className="kcal-hero" style={{margin:'14px 0'}}>
         <div>
@@ -1613,6 +1828,8 @@ function StudentProgress({profile,setProfile}){
         <div className="stat"><div className="stat-lbl">Variação total</div><div className="stat-val" style={{color:diff==null?'':diff<=0?'var(--sage)':'var(--accent3)'}}>{diff==null?'—':(diff>0?'+':'')+diff}<span className="stat-unit">kg</span></div></div>
         <div className="stat"><div className="stat-lbl">Registros</div><div className="stat-val">{weights.length}</div></div>
       </div>
+      <WeightGoal profile={profile} weights={weights} setProfile={setProfile}/>
+      <Achievements profile={profile} weights={weights}/>
       <div className="card" style={{marginBottom:14}}>
         <div className="sec-title">⚖️ Registrar peso de hoje</div>
         <div style={{display:'flex',gap:8}}>

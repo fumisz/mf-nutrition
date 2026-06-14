@@ -1,6 +1,6 @@
 # Servidor estático simples para testar o MF Nutrition localmente.
 # Uso:  powershell -ExecutionPolicy Bypass -File serve.ps1
-$port = 5500
+$port = 5510
 $root = $PSScriptRoot
 $listener = [System.Net.HttpListener]::new()
 $listener.Prefixes.Add("http://localhost:$port/")
