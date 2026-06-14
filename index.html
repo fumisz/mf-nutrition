@@ -526,10 +526,11 @@ function CoachApp({profile,setProfile}){
   useEffect(()=>{loadStudents();},[loadStudents]);
 
   const nav=v=>{setTab(v);setSel(null);setMenu(false);};
-  const NAV=[['students','👥','Alunos'],['code','🔗','Meu código'],['profile','⚙️','Perfil']];
+  const NAV=[['students','👥','Alunos'],['templates','🗂️','Cronogramas'],['code','🔗','Meu código'],['profile','⚙️','Perfil']];
 
   let content;
   if(sel) content=<CoachStudentDetail key={sel.id} coach={profile} student={sel} onBack={()=>{setSel(null);loadStudents();}}/>;
+  else if(tab==='templates') content=<CoachTemplates coach={profile}/>;
   else if(tab==='code') content=<CoachCode profile={profile}/>;
   else if(tab==='profile') content=<CoachProfile profile={profile} setProfile={setProfile}/>;
   else content=<CoachStudents students={students} onSelect={s=>{setSel(s);setMenu(false);}} code={profile.coach_code}/>;
@@ -666,12 +667,189 @@ function CoachStudentDetail({coach,student,onBack}){
 }
 
 /* ──────── Editor de plano alimentar ──────── */
+/* ──────── Base de alimentos (cache em memória) ──────── */
+let _foodsCache=null;
+async function getFoods(){
+  if(_foodsCache) return _foodsCache;
+  const {data}=await sb.from('foods').select('*').order('category').order('name');
+  _foodsCache=data||[]; return _foodsCache;
+}
+
+/* ──────── Carregar árvore de um cronograma (ids novos p/ reaplicar) ──────── */
+async function loadTemplateTree(templateId){
+  const {data:meals}=await sb.from('template_meals').select('*').eq('template_id',templateId).order('order_index');
+  const mealIds=(meals||[]).map(m=>m.id);
+  let items=[],subs=[];
+  if(mealIds.length){
+    const ri=await sb.from('template_items').select('*').in('template_meal_id',mealIds).order('order_index'); items=ri.data||[];
+    const itemIds=items.map(i=>i.id);
+    if(itemIds.length){ const rs=await sb.from('template_subs').select('*').in('template_item_id',itemIds); subs=rs.data||[]; }
+  }
+  return (meals||[]).map(m=>({
+    id:genId(), name:m.name, time:m.time, notes:m.notes,
+    items: items.filter(i=>i.template_meal_id===m.id).map(i=>({
+      id:genId(), food:i.food, qty:i.qty, kcal:i.kcal, protein:i.protein, carb:i.carb, fat:i.fat, prep:i.prep||'',
+      subs: subs.filter(s=>s.template_item_id===i.id).map(s=>({id:genId(),food:s.food,qty:s.qty,kcal:s.kcal,protein:s.protein,carb:s.carb,fat:s.fat}))
+    }))
+  }));
+}
+
+/* Constrói payloads (meals/items/subs) a partir da árvore em memória, com chave estrangeira opcional */
+function buildTemplatePayload(meals, templateId){
+  const mealsP=[], itemsP=[], subsP=[];
+  meals.forEach((m,mi)=>{
+    const tmId=genId(); mealsP.push({id:tmId,template_id:templateId,name:m.name,time:m.time||null,notes:m.notes||null,order_index:mi});
+    m.items.forEach((it,ii)=>{
+      const tiId=genId();
+      itemsP.push({id:tiId,template_meal_id:tmId,food:it.food,qty:it.qty,kcal:n0(it.kcal),protein:n0(it.protein),carb:n0(it.carb),fat:n0(it.fat),prep:it.prep||null,order_index:ii});
+      (it.subs||[]).forEach(s=>subsP.push({id:genId(),template_item_id:tiId,food:s.food,qty:s.qty,kcal:n0(s.kcal),protein:n0(s.protein),carb:n0(s.carb),fat:n0(s.fat)}));
+    });
+  });
+  return {mealsP,itemsP,subsP};
+}
+
+/* ──────── Modal: selecionar alimento da base ──────── */
+function FoodPicker({foods,onPick,onClose}){
+  const [q,setQ]=useState(''); const [cat,setCat]=useState('Todas');
+  const [sel,setSel]=useState(null); const [grams,setGrams]=useState('100');
+  const cats=['Todas',...Array.from(new Set(foods.map(f=>f.category)))];
+  const list=foods.filter(f=>(cat==='Todas'||f.category===cat) && f.name.toLowerCase().includes(q.toLowerCase())).slice(0,250);
+  const fct=sel?n0(grams)/100:0;
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+          <div className="ph-title" style={{fontSize:20}}>Base de alimentos</div>
+          <button className="btn-icon" onClick={onClose}>✕</button>
+        </div>
+        {!sel ? (<>
+          <input className="fi" placeholder="🔍 Buscar alimento..." value={q} onChange={e=>setQ(e.target.value)} autoFocus/>
+          <div style={{display:'flex',gap:6,overflowX:'auto',padding:'11px 0'}}>
+            {cats.map(c=><button key={c} className={`btn btn-sm ${cat===c?'btn-primary':'btn-ghost'}`} style={{flexShrink:0}} onClick={()=>setCat(c)}>{c}</button>)}
+          </div>
+          <div style={{maxHeight:'46vh',overflowY:'auto'}}>
+            {list.map(f=>(
+              <div key={f.id} onClick={()=>{setSel(f);setGrams('100');}} style={{padding:'11px 4px',borderBottom:'1px solid var(--border)',cursor:'pointer',display:'flex',justifyContent:'space-between',gap:10}}>
+                <div><div style={{fontWeight:600,fontSize:14}}>{f.name}</div><div style={{fontSize:11,color:'var(--text2)'}}>{f.category} · por 100g</div></div>
+                <div style={{textAlign:'right',fontSize:11,color:'var(--text2)',whiteSpace:'nowrap'}}>{r0(f.kcal)} kcal<br/>P{r0(f.protein)} C{r0(f.carb)} G{r0(f.fat)}</div>
+              </div>
+            ))}
+            {list.length===0 && <div className="muted" style={{padding:20,textAlign:'center'}}>Nada encontrado.</div>}
+          </div>
+        </>) : (<>
+          <span className="link" onClick={()=>setSel(null)} style={{fontSize:13}}>← voltar à lista</span>
+          <div style={{margin:'12px 0 4px',fontFamily:'var(--serif)',fontSize:21}}>{sel.name}</div>
+          <FI label="Quantidade (gramas / ml)" type="number" value={grams} onChange={e=>setGrams(e.target.value)} autoFocus/>
+          <div className="macro-row" style={{marginTop:14}}>
+            <div className="macro"><div className="macro-v" style={{color:'var(--accent)'}}>{r0(sel.kcal*fct)}</div><div className="macro-l">Kcal</div></div>
+            <div className="macro"><div className="macro-v" style={{color:'var(--accent3)'}}>{(sel.protein*fct).toFixed(1)}</div><div className="macro-l">Prot</div></div>
+            <div className="macro"><div className="macro-v" style={{color:'var(--gold)'}}>{(sel.carb*fct).toFixed(1)}</div><div className="macro-l">Carb</div></div>
+            <div className="macro"><div className="macro-v" style={{color:'var(--fat)'}}>{(sel.fat*fct).toFixed(1)}</div><div className="macro-l">Gord</div></div>
+          </div>
+          {sel.preparo && <div className="alert alert-info" style={{marginTop:6}}>👨‍🍳 {sel.preparo}</div>}
+          <button className="btn btn-primary btn-block" style={{marginTop:8}} disabled={!n0(grams)} onClick={()=>onPick(sel,n0(grams))}>Adicionar ao plano</button>
+        </>)}
+      </div>
+    </div>
+  );
+}
+
+/* ──────── Modal: escolher um cronograma salvo ──────── */
+function TemplatePicker({coachId,onPick,onClose}){
+  const [tpls,setTpls]=useState(null);
+  useEffect(()=>{ sb.from('plan_templates').select('*').eq('coach_id',coachId).order('created_at',{ascending:false}).then(({data})=>setTpls(data||[])); },[coachId]);
+  return (
+    <div className="modal-bg" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}>
+      <div className="ph-title" style={{fontSize:20,marginBottom:14}}>Usar cronograma salvo</div>
+      {tpls===null?<Spinner/>: tpls.length===0? <div className="muted" style={{fontSize:13}}>Você ainda não salvou nenhum cronograma. Monte um plano e clique em “Salvar como cronograma”.</div> :
+        tpls.map(t=>(
+          <div key={t.id} onClick={()=>onPick(t)} className="student-card" style={{marginBottom:9}}>
+            <div style={{fontWeight:600,fontFamily:'var(--serif)',fontSize:16}}>{t.title}</div>
+            <div style={{fontSize:12,color:'var(--text2)',marginTop:2}}>{t.notes||'Sem observações'}</div>
+          </div>))}
+      <button className="btn btn-ghost btn-block" style={{marginTop:10}} onClick={onClose}>Cancelar</button>
+    </div></div>
+  );
+}
+
+/* ──────── Editor de refeições reutilizável (plano e cronograma) ──────── */
+function MealsEditor({meals,setMeals,foods}){
+  const [pickFor,setPickFor]=useState(null);
+  const addMeal=()=>setMeals(m=>[...m,{id:genId(),name:'Nova refeição',time:'',notes:'',items:[]}]);
+  const updMeal=(id,k,v)=>setMeals(m=>m.map(x=>x.id===id?{...x,[k]:v}:x));
+  const delMeal=id=>setMeals(m=>m.filter(x=>x.id!==id));
+  const addItem=(mid,item)=>setMeals(m=>m.map(x=>x.id===mid?{...x,items:[...x.items,item||{id:genId(),food:'',qty:'',kcal:'',protein:'',carb:'',fat:'',prep:'',subs:[]}]}:x));
+  const updItem=(mid,iid,k,v)=>setMeals(m=>m.map(x=>x.id!==mid?x:{...x,items:x.items.map(i=>i.id===iid?{...i,[k]:v}:i)}));
+  const delItem=(mid,iid)=>setMeals(m=>m.map(x=>x.id!==mid?x:{...x,items:x.items.filter(i=>i.id!==iid)}));
+  const addSub=(mid,iid)=>setMeals(m=>m.map(x=>x.id!==mid?x:{...x,items:x.items.map(i=>i.id!==iid?i:{...i,subs:[...(i.subs||[]),{id:genId(),food:'',qty:'',kcal:'',protein:'',carb:'',fat:''}]})}));
+  const updSub=(mid,iid,sid,k,v)=>setMeals(m=>m.map(x=>x.id!==mid?x:{...x,items:x.items.map(i=>i.id!==iid?i:{...i,subs:i.subs.map(s=>s.id===sid?{...s,[k]:v}:s)})}));
+  const delSub=(mid,iid,sid)=>setMeals(m=>m.map(x=>x.id!==mid?x:{...x,items:x.items.map(i=>i.id!==iid?i:{...i,subs:i.subs.filter(s=>s.id!==sid)})}));
+  const onPickFood=(food,grams)=>{
+    const f=grams/100;
+    addItem(pickFor,{id:genId(),food:food.name,qty:grams+' g',kcal:Math.round(food.kcal*f),
+      protein:+(food.protein*f).toFixed(1),carb:+(food.carb*f).toFixed(1),fat:+(food.fat*f).toFixed(1),prep:food.preparo||'',subs:[]});
+    setPickFor(null);
+  };
+  return (
+    <>
+      {meals.map(m=>{
+        const ms=sumItems(m.items);
+        return (
+          <div className="card" key={m.id} style={{marginTop:12}}>
+            <div className="fgrid" style={{gridTemplateColumns:'2fr 1fr auto'}}>
+              <FI label="Refeição" value={m.name} onChange={e=>updMeal(m.id,'name',e.target.value)} placeholder="Café da manhã"/>
+              <FI label="Horário" value={m.time||''} onChange={e=>updMeal(m.id,'time',e.target.value)} placeholder="08:00"/>
+              <div style={{display:'flex',alignItems:'flex-end'}}><button className="btn-icon" onClick={()=>delMeal(m.id)} title="Excluir refeição">🗑️</button></div>
+            </div>
+            <div style={{margin:'12px 0 4px',fontSize:11,color:'var(--text2)'}}>
+              {r0(ms.kcal)} kcal · P {r0(ms.protein)}g · C {r0(ms.carb)}g · G {r0(ms.fat)}g</div>
+
+            {m.items.map(it=>(
+              <div key={it.id} style={{background:'var(--bg3)',borderRadius:12,padding:12,marginTop:9}}>
+                <div className="fgrid" style={{gridTemplateColumns:'2fr 1fr auto'}}>
+                  <FI value={it.food} onChange={e=>updItem(m.id,it.id,'food',e.target.value)} placeholder="Alimento"/>
+                  <FI value={it.qty} onChange={e=>updItem(m.id,it.id,'qty',e.target.value)} placeholder="Qtd (100g)"/>
+                  <div style={{display:'flex',alignItems:'center'}}><button className="btn-icon" onClick={()=>delItem(m.id,it.id)}>✕</button></div>
+                </div>
+                <div className="fgrid" style={{gridTemplateColumns:'repeat(4,1fr)',marginTop:8}}>
+                  <FI type="number" value={it.kcal} onChange={e=>updItem(m.id,it.id,'kcal',e.target.value)} placeholder="kcal"/>
+                  <FI type="number" value={it.protein} onChange={e=>updItem(m.id,it.id,'protein',e.target.value)} placeholder="Prot g"/>
+                  <FI type="number" value={it.carb} onChange={e=>updItem(m.id,it.id,'carb',e.target.value)} placeholder="Carb g"/>
+                  <FI type="number" value={it.fat} onChange={e=>updItem(m.id,it.id,'fat',e.target.value)} placeholder="Gord g"/>
+                </div>
+                <input className="fi" style={{marginTop:8,fontSize:13.5}} value={it.prep||''} onChange={e=>updItem(m.id,it.id,'prep',e.target.value)} placeholder="👨‍🍳 Forma de preparo (opcional)"/>
+                {(it.subs||[]).map(s=>(
+                  <div key={s.id} className="fgrid" style={{gridTemplateColumns:'2fr 1fr auto',marginTop:7,paddingLeft:10,borderLeft:'2px solid var(--blue)'}}>
+                    <FI value={s.food} onChange={e=>updSub(m.id,it.id,s.id,'food',e.target.value)} placeholder="Substituir por…"/>
+                    <FI value={s.qty} onChange={e=>updSub(m.id,it.id,s.id,'qty',e.target.value)} placeholder="Qtd"/>
+                    <div style={{display:'flex',alignItems:'center'}}><button className="btn-icon" onClick={()=>delSub(m.id,it.id,s.id)}>✕</button></div>
+                  </div>
+                ))}
+                <button className="btn btn-ghost btn-sm" style={{marginTop:8}} onClick={()=>addSub(m.id,it.id)}>🔄 Adicionar substituição</button>
+              </div>
+            ))}
+            <div className="bgroup" style={{marginTop:11}}>
+              <button className="btn btn-secondary btn-sm" onClick={()=>setPickFor(m.id)}>🍎 Da base de alimentos</button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>addItem(m.id)}>＋ Manual</button>
+            </div>
+          </div>
+        );
+      })}
+      <button className="btn btn-secondary btn-block" style={{marginTop:14}} onClick={addMeal}>＋ Adicionar refeição</button>
+      {pickFor && <FoodPicker foods={foods} onPick={onPickFood} onClose={()=>setPickFor(null)}/>}
+    </>
+  );
+}
+
 function PlanEditor({coach,student}){
   const [plan,setPlan]=useState(undefined); // undefined=loading, null=nenhum
   const [meals,setMeals]=useState([]);
   const [orig,setOrig]=useState({meals:[],items:[],subs:[]});
   const [busy,setBusy]=useState(false);
   const [saved,setSaved]=useState(false);
+  const [foods,setFoods]=useState([]);
+  const [showTpl,setShowTpl]=useState(false);
+  useEffect(()=>{ getFoods().then(setFoods); },[]);
 
   const load=useCallback(async()=>{
     const p=await getActivePlan(student.id);
@@ -693,16 +871,6 @@ function PlanEditor({coach,student}){
     setPlan(data); setMeals([]); setOrig({meals:[],items:[],subs:[]});
   };
 
-  const addMeal=()=>setMeals(m=>[...m,{id:genId(),name:'Nova refeição',time:'',notes:'',items:[]}]);
-  const updMeal=(id,k,v)=>setMeals(m=>m.map(x=>x.id===id?{...x,[k]:v}:x));
-  const delMeal=id=>setMeals(m=>m.filter(x=>x.id!==id));
-  const addItem=mid=>setMeals(m=>m.map(x=>x.id===mid?{...x,items:[...x.items,{id:genId(),food:'',qty:'',kcal:'',protein:'',carb:'',fat:'',subs:[]}]}:x));
-  const updItem=(mid,iid,k,v)=>setMeals(m=>m.map(x=>x.id!==mid?x:{...x,items:x.items.map(i=>i.id===iid?{...i,[k]:v}:i)}));
-  const delItem=(mid,iid)=>setMeals(m=>m.map(x=>x.id!==mid?x:{...x,items:x.items.filter(i=>i.id!==iid)}));
-  const addSub=(mid,iid)=>setMeals(m=>m.map(x=>x.id!==mid?x:{...x,items:x.items.map(i=>i.id!==iid?i:{...i,subs:[...i.subs,{id:genId(),food:'',qty:'',kcal:'',protein:'',carb:'',fat:''}]})}));
-  const updSub=(mid,iid,sid,k,v)=>setMeals(m=>m.map(x=>x.id!==mid?x:{...x,items:x.items.map(i=>i.id!==iid?i:{...i,subs:i.subs.map(s=>s.id===sid?{...s,[k]:v}:s)})}));
-  const delSub=(mid,iid,sid)=>setMeals(m=>m.map(x=>x.id!==mid?x:{...x,items:x.items.map(i=>i.id!==iid?i:{...i,subs:i.subs.filter(s=>s.id!==sid)})}));
-
   const save=async()=>{
     setBusy(true);
     try{
@@ -713,7 +881,7 @@ function PlanEditor({coach,student}){
       if(delM.length) await sb.from('meals').delete().in('id',delM);
 
       const itemsPayload=[]; meals.forEach(m=>m.items.forEach((it,i)=>itemsPayload.push(
-        {id:it.id,meal_id:m.id,food:it.food,qty:it.qty,kcal:n0(it.kcal),protein:n0(it.protein),carb:n0(it.carb),fat:n0(it.fat),order_index:i})));
+        {id:it.id,meal_id:m.id,food:it.food,qty:it.qty,kcal:n0(it.kcal),protein:n0(it.protein),carb:n0(it.carb),fat:n0(it.fat),prep:it.prep||null,order_index:i})));
       if(itemsPayload.length) await sb.from('meal_items').upsert(itemsPayload);
       const curI=itemsPayload.map(i=>i.id), delI=orig.items.filter(id=>!curI.includes(id));
       if(delI.length) await sb.from('meal_items').delete().in('id',delI);
@@ -729,6 +897,25 @@ function PlanEditor({coach,student}){
     setBusy(false);
   };
 
+  const applyTemplate=async(t)=>{
+    setShowTpl(false);
+    const tree=await loadTemplateTree(t.id);
+    setPlan(p=>({...p,title:t.title,notes:t.notes,water_goal_ml:t.water_goal_ml}));
+    setMeals(tree);
+  };
+  const saveAsTemplate=async()=>{
+    const title=prompt('Nome do cronograma:', plan.title||'Cronograma'); if(!title) return;
+    try{
+      const {data:t,error}=await sb.from('plan_templates').insert({coach_id:coach.id,title,notes:plan.notes||null,water_goal_ml:n0(plan.water_goal_ml)}).select().single();
+      if(error) throw error;
+      const {mealsP,itemsP,subsP}=buildTemplatePayload(meals,t.id);
+      if(mealsP.length) await sb.from('template_meals').insert(mealsP);
+      if(itemsP.length) await sb.from('template_items').insert(itemsP);
+      if(subsP.length) await sb.from('template_subs').insert(subsP);
+      alert('Cronograma “'+title+'” salvo! Você já pode aplicar em outros alunos.');
+    }catch(e){ alert('Erro ao salvar cronograma: '+(e.message||e)); }
+  };
+
   if(plan===undefined) return <Spinner/>;
   if(plan===null) return (
     <div className="empty"><div className="empty-icon">🍽️</div>
@@ -741,6 +928,10 @@ function PlanEditor({coach,student}){
   return (
     <div>
       <div className="card" style={{marginBottom:14}}>
+        <div className="bgroup" style={{marginBottom:14}}>
+          <button className="btn btn-secondary btn-sm" onClick={()=>setShowTpl(true)}>📋 Usar cronograma salvo</button>
+          {meals.length>0 && <button className="btn btn-ghost btn-sm" onClick={saveAsTemplate}>💾 Salvar como cronograma</button>}
+        </div>
         <div className="fgrid">
           <FI label="Título do plano" value={plan.title||''} onChange={e=>setPlan({...plan,title:e.target.value})}/>
           <FI label="Meta de água" unit="ml" type="number" value={plan.water_goal_ml||''} onChange={e=>setPlan({...plan,water_goal_ml:e.target.value})}/>
@@ -750,50 +941,95 @@ function PlanEditor({coach,student}){
         <div style={{fontSize:11,color:'var(--text3)',textAlign:'center'}}>Totais diários do plano</div>
       </div>
 
-      {meals.map((m)=>{
-        const ms=sumItems(m.items);
-        return (
-          <div className="card" key={m.id} style={{marginTop:12}}>
-            <div className="fgrid" style={{gridTemplateColumns:'2fr 1fr auto'}}>
-              <FI label="Refeição" value={m.name} onChange={e=>updMeal(m.id,'name',e.target.value)} placeholder="Café da manhã"/>
-              <FI label="Horário" value={m.time||''} onChange={e=>updMeal(m.id,'time',e.target.value)} placeholder="08:00"/>
-              <div style={{display:'flex',alignItems:'flex-end'}}><button className="btn-icon" onClick={()=>delMeal(m.id)} title="Excluir refeição">🗑️</button></div>
-            </div>
-            <div style={{margin:'12px 0 4px',fontSize:11,color:'var(--text3)'}}>
-              {r0(ms.kcal)} kcal · P {r0(ms.protein)}g · C {r0(ms.carb)}g · G {r0(ms.fat)}g</div>
+      <MealsEditor meals={meals} setMeals={setMeals} foods={foods}/>
 
-            {m.items.map(it=>(
-              <div key={it.id} style={{background:'var(--bg3)',border:'1px solid var(--border)',borderRadius:10,padding:11,marginTop:9}}>
-                <div className="fgrid" style={{gridTemplateColumns:'2fr 1fr auto'}}>
-                  <FI value={it.food} onChange={e=>updItem(m.id,it.id,'food',e.target.value)} placeholder="Alimento"/>
-                  <FI value={it.qty} onChange={e=>updItem(m.id,it.id,'qty',e.target.value)} placeholder="Qtd (100g)"/>
-                  <div style={{display:'flex',alignItems:'center'}}><button className="btn-icon" onClick={()=>delItem(m.id,it.id)}>✕</button></div>
-                </div>
-                <div className="fgrid" style={{gridTemplateColumns:'repeat(4,1fr)',marginTop:8}}>
-                  <FI type="number" value={it.kcal} onChange={e=>updItem(m.id,it.id,'kcal',e.target.value)} placeholder="kcal"/>
-                  <FI type="number" value={it.protein} onChange={e=>updItem(m.id,it.id,'protein',e.target.value)} placeholder="Prot g"/>
-                  <FI type="number" value={it.carb} onChange={e=>updItem(m.id,it.id,'carb',e.target.value)} placeholder="Carb g"/>
-                  <FI type="number" value={it.fat} onChange={e=>updItem(m.id,it.id,'fat',e.target.value)} placeholder="Gord g"/>
-                </div>
-                {it.subs.map(s=>(
-                  <div key={s.id} className="fgrid" style={{gridTemplateColumns:'2fr 1fr auto',marginTop:7,paddingLeft:10,borderLeft:'2px solid var(--blue)'}}>
-                    <FI value={s.food} onChange={e=>updSub(m.id,it.id,s.id,'food',e.target.value)} placeholder="Substituir por…"/>
-                    <FI value={s.qty} onChange={e=>updSub(m.id,it.id,s.id,'qty',e.target.value)} placeholder="Qtd"/>
-                    <div style={{display:'flex',alignItems:'center'}}><button className="btn-icon" onClick={()=>delSub(m.id,it.id,s.id)}>✕</button></div>
-                  </div>
-                ))}
-                <button className="btn btn-ghost btn-sm" style={{marginTop:8}} onClick={()=>addSub(m.id,it.id)}>🔄 Adicionar substituição</button>
-              </div>
-            ))}
-            <button className="btn btn-secondary btn-sm" style={{marginTop:10}} onClick={()=>addItem(m.id)}>＋ Adicionar alimento</button>
-          </div>
-        );
-      })}
-
-      <button className="btn btn-secondary btn-block" style={{marginTop:14}} onClick={addMeal}>＋ Adicionar refeição</button>
       <div style={{position:'sticky',bottom:0,padding:'14px 0',marginTop:8}}>
         <button className="btn btn-primary btn-block" disabled={busy} onClick={save}>{busy?'Salvando…':saved?'✓ Plano salvo':'💾 Salvar plano'}</button>
       </div>
+      {showTpl && <TemplatePicker coachId={coach.id} onPick={applyTemplate} onClose={()=>setShowTpl(false)}/>}
+    </div>
+  );
+}
+
+/* ──────── Cronogramas (templates) do treinador ──────── */
+function TemplateEditor({coach,template,onBack}){
+  const [meta,setMeta]=useState(template?{title:template.title||'',notes:template.notes||'',water_goal_ml:template.water_goal_ml||3000}:{title:'Cronograma',notes:'',water_goal_ml:3000});
+  const [meals,setMeals]=useState(template?undefined:[]);
+  const [foods,setFoods]=useState([]);
+  const [busy,setBusy]=useState(false); const [saved,setSaved]=useState(false);
+  useEffect(()=>{ getFoods().then(setFoods); },[]);
+  useEffect(()=>{ if(template) loadTemplateTree(template.id).then(setMeals); },[]);
+  const save=async()=>{
+    if(!meta.title.trim()){alert('Dê um nome ao cronograma.');return;}
+    setBusy(true);
+    try{
+      let id=template?template.id:null;
+      if(id){
+        await sb.from('plan_templates').update({title:meta.title,notes:meta.notes||null,water_goal_ml:n0(meta.water_goal_ml)}).eq('id',id);
+        await sb.from('template_meals').delete().eq('template_id',id);
+      } else {
+        const {data,error}=await sb.from('plan_templates').insert({coach_id:coach.id,title:meta.title,notes:meta.notes||null,water_goal_ml:n0(meta.water_goal_ml)}).select().single();
+        if(error) throw error; id=data.id;
+      }
+      const {mealsP,itemsP,subsP}=buildTemplatePayload(meals||[],id);
+      if(mealsP.length) await sb.from('template_meals').insert(mealsP);
+      if(itemsP.length) await sb.from('template_items').insert(itemsP);
+      if(subsP.length) await sb.from('template_subs').insert(subsP);
+      setSaved(true); setTimeout(onBack,700);
+    }catch(e){ alert('Erro ao salvar: '+(e.message||e)); setBusy(false); }
+  };
+  if(meals===undefined) return <Spinner/>;
+  const total=sumMeals(meals);
+  return (
+    <div>
+      <div className="abar"><div><div className="breadcrumb" onClick={onBack}>← Cronogramas</div>
+        <div className="ph-title">{template?'Editar cronograma':'Novo cronograma'}</div></div></div>
+      <div className="card" style={{marginBottom:14}}>
+        <div className="fgrid">
+          <FI label="Nome do cronograma" value={meta.title} onChange={e=>setMeta({...meta,title:e.target.value})} placeholder="Ex: Cutting 1800 kcal"/>
+          <FI label="Meta de água" unit="ml" type="number" value={meta.water_goal_ml} onChange={e=>setMeta({...meta,water_goal_ml:e.target.value})}/>
+        </div>
+        <div style={{marginTop:12}}><FTA label="Observações" value={meta.notes} onChange={e=>setMeta({...meta,notes:e.target.value})} placeholder="Indicações gerais do cronograma"/></div>
+        <MacroRow s={total}/><div style={{fontSize:11,color:'var(--text3)',textAlign:'center'}}>Totais diários</div>
+      </div>
+      <MealsEditor meals={meals} setMeals={setMeals} foods={foods}/>
+      <div style={{position:'sticky',bottom:0,padding:'14px 0',marginTop:8}}>
+        <button className="btn btn-primary btn-block" disabled={busy} onClick={save}>{busy?'Salvando…':saved?'✓ Salvo':'💾 Salvar cronograma'}</button>
+      </div>
+    </div>
+  );
+}
+
+function CoachTemplates({coach}){
+  const [tpls,setTpls]=useState(null);
+  const [edit,setEdit]=useState(null);
+  const load=useCallback(async()=>{ const {data}=await sb.from('plan_templates').select('*').eq('coach_id',coach.id).order('created_at',{ascending:false}); setTpls(data||[]); },[coach.id]);
+  useEffect(()=>{load();},[load]);
+  const del=async(t)=>{ if(!confirm('Excluir o cronograma “'+t.title+'”?'))return; await sb.from('plan_templates').delete().eq('id',t.id); load(); };
+  if(edit) return <TemplateEditor coach={coach} template={edit==='new'?null:edit} onBack={()=>{setEdit(null);load();}}/>;
+  if(tpls===null) return <Spinner/>;
+  return (
+    <div>
+      <div className="abar"><div><div className="ph-title">Cronogramas</div>
+        <div className="ph-sub">Modelos de plano para reaproveitar em vários alunos</div></div>
+        <button className="btn btn-primary" onClick={()=>setEdit('new')}>＋ Novo cronograma</button></div>
+      {tpls.length===0 ? <div className="empty"><div className="empty-icon">🗂️</div>
+        <div className="empty-title">Nenhum cronograma salvo</div>
+        <p style={{fontSize:13}}>Crie modelos de plano aqui, ou salve o plano de um aluno como cronograma. Depois aplique em quem quiser com um clique.</p>
+        <button className="btn btn-primary" style={{marginTop:14}} onClick={()=>setEdit('new')}>＋ Criar primeiro cronograma</button></div> :
+      <div className="student-grid">
+        {tpls.map(t=>(
+          <div key={t.id} className="student-card" onClick={()=>setEdit(t)}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+              <div style={{minWidth:0}}>
+                <div style={{fontWeight:600,fontFamily:'var(--serif)',fontSize:17}}>{t.title}</div>
+                <div style={{fontSize:12,color:'var(--text2)',marginTop:3,overflow:'hidden',textOverflow:'ellipsis'}}>{t.notes||'Sem observações'}</div>
+              </div>
+              <button className="btn-icon btn-sm" onClick={e=>{e.stopPropagation();del(t);}} title="Excluir">🗑️</button>
+            </div>
+          </div>
+        ))}
+      </div>}
     </div>
   );
 }
@@ -1062,6 +1298,8 @@ function StudentToday({profile}){
                     <div style={{flex:1}}>
                       <div className="item-food">{it.food} {it.qty&&<span className="item-qty">— {it.qty}</span>}</div>
                       <div className="item-macros">{r0(it.kcal)} kcal · P{r0(it.protein)} C{r0(it.carb)} G{r0(it.fat)}</div>
+                      {it.prep && <details style={{marginTop:3}}><summary className="sub-link" style={{color:'var(--gold)'}}>👨‍🍳 Forma de preparo</summary>
+                        <div className="sub-box" style={{borderColor:'var(--gold)'}}><div className="sub-item" style={{color:'var(--text)'}}>{it.prep}</div></div></details>}
                       {it.subs.length>0 && <details><summary className="sub-link">🔄 {it.subs.length} substituiç{it.subs.length>1?'ões':'ão'}</summary>
                         <div className="sub-box"><div className="st">Pode trocar por</div>
                           {it.subs.map(s=><div key={s.id} className="sub-item">↳ {s.food}{s.qty?` — ${s.qty}`:''} <span style={{color:'var(--text3)'}}>({r0(s.kcal)} kcal)</span></div>)}
