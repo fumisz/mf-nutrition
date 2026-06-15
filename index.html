@@ -897,7 +897,7 @@ function AdminPanel({profile}){
 /* ──────── Detalhe do aluno (treinador): abas Plano / Registros / Chat ──────── */
 function CoachStudentDetail({coach,student,onBack}){
   const [tab,setTab]=useState('plan');
-  const TABS=[['plan','🍽️ Plano'],['anamnese','📋 Anamnese'],['preview','👁️ Visão'],['logs','📊 Registros'],['chat','💬 Conversa']];
+  const TABS=[['plan','🍽️ Plano'],['supps','💊 Suplem.'],['anamnese','📋 Anamnese'],['preview','👁️ Visão'],['logs','📊 Registros'],['chat','💬 Conversa']];
   return (
     <div>
       <div className="abar">
@@ -913,6 +913,7 @@ function CoachStudentDetail({coach,student,onBack}){
         {TABS.map(([v,l])=><button key={v} className={tab===v?'on':''} onClick={()=>setTab(v)}>{l}</button>)}
       </div>
       {tab==='plan' && <PlanEditor coach={coach} student={student}/>}
+      {tab==='supps' && <CoachSupplements coach={coach} student={student}/>}
       {tab==='anamnese' && <CoachAnamnese coach={coach} student={student}/>}
       {tab==='preview' && <StudentPreview student={student}/>}
       {tab==='logs' && <CoachLogs student={student}/>}
@@ -2035,6 +2036,134 @@ function StudentAnamnese({profile}){
   );
 }
 
+/* ════════════════════ SUPLEMENTAÇÃO ════════════════════ */
+const SUPP_LIBRARY=[
+  {cat:'Performance',name:'Creatina monohidratada',dose:'3-5 g',timing:'Qualquer horário, todos os dias',notes:'Força e hipertrofia. Uso contínuo, não precisa ciclar.'},
+  {cat:'Performance',name:'Whey protein',dose:'25-35 g',timing:'Pós-treino ou lanche',notes:'Completa a proteína do dia.'},
+  {cat:'Performance',name:'Cafeína (pré-treino)',dose:'100-200 mg',timing:'30-40 min antes do treino',notes:'Foco e desempenho. Evite à noite.'},
+  {cat:'Performance',name:'Beta-alanina',dose:'3-5 g',timing:'Diário, qualquer horário',notes:'Resistência em séries longas.'},
+  {cat:'Performance',name:'BCAA / EAA',dose:'5-10 g',timing:'Durante o treino',notes:'Opcional se a proteína diária já está alta.'},
+  {cat:'Performance',name:'Glutamina',dose:'5 g',timing:'Pós-treino ou antes de dormir',notes:'Recuperação e saúde intestinal.'},
+  {cat:'Vitaminas',name:'Vitamina D3',dose:'1000-2000 UI',timing:'Manhã, com gordura',notes:'Imunidade, ossos e hormônios. Ideal ajustar por exame.'},
+  {cat:'Vitaminas',name:'Vitamina B12',dose:'500-1000 mcg',timing:'Manhã',notes:'Energia e sistema nervoso (atenção redobrada p/ vegetarianos).'},
+  {cat:'Vitaminas',name:'Vitamina C',dose:'500-1000 mg',timing:'Qualquer horário',notes:'Antioxidante e imunidade.'},
+  {cat:'Vitaminas',name:'Multivitamínico',dose:'1 dose',timing:'Café da manhã',notes:'Cobre lacunas de micronutrientes.'},
+  {cat:'Vitaminas',name:'Complexo B',dose:'1 dose',timing:'Manhã',notes:'Metabolismo energético.'},
+  {cat:'Saúde',name:'Ômega 3 (EPA/DHA)',dose:'1-2 g',timing:'Com uma refeição',notes:'Anti-inflamatório e saúde cardiovascular.'},
+  {cat:'Saúde',name:'Magnésio',dose:'200-400 mg',timing:'À noite',notes:'Sono, relaxamento muscular e cãibras.'},
+  {cat:'Saúde',name:'Zinco',dose:'15-30 mg',timing:'Com refeição',notes:'Imunidade e função hormonal.'},
+  {cat:'Saúde',name:'Colágeno',dose:'10 g',timing:'Qualquer horário',notes:'Pele, cabelo e articulações.'},
+  {cat:'Saúde',name:'Probiótico',dose:'1 dose',timing:'Conforme o rótulo',notes:'Saúde intestinal e digestão.'},
+  {cat:'Saúde',name:'Melatonina',dose:'0,5-3 mg',timing:'30 min antes de dormir',notes:'Ajuda no sono. Comece pela menor dose.'},
+  {cat:'Saúde',name:'Coenzima Q10',dose:'100 mg',timing:'Com refeição',notes:'Energia celular.'},
+  {cat:'Emagrecimento',name:'Termogênico',dose:'Conforme rótulo',timing:'Manhã / pré-treino',notes:'Auxílio no gasto calórico. Evite à noite.'},
+  {cat:'Emagrecimento',name:'Cromo (picolinato)',dose:'200 mcg',timing:'Com refeição',notes:'Auxílio no controle da glicemia/vontade de doce.'},
+];
+function SuppPicker({onPick,onClose}){
+  const [cat,setCat]=useState('Todas');
+  const cats=['Todas',...Array.from(new Set(SUPP_LIBRARY.map(s=>s.cat)))];
+  const list=SUPP_LIBRARY.filter(s=>cat==='Todas'||s.cat===cat);
+  return (
+    <div className="modal-bg" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+        <div className="ph-title" style={{fontSize:20}}>Biblioteca</div><button className="btn-icon" onClick={onClose}>✕</button></div>
+      <div style={{display:'flex',gap:6,overflowX:'auto',paddingBottom:11}}>
+        {cats.map(c=><button key={c} className={`btn btn-sm ${cat===c?'btn-primary':'btn-ghost'}`} style={{flexShrink:0}} onClick={()=>setCat(c)}>{c}</button>)}
+      </div>
+      <div style={{maxHeight:'52vh',overflowY:'auto'}}>
+        {list.map(s=>(
+          <div key={s.name} onClick={()=>onPick(s)} style={{padding:'11px 4px',borderBottom:'1px solid var(--border)',cursor:'pointer'}}>
+            <div style={{fontWeight:600,fontSize:14}}>💊 {s.name}</div>
+            <div style={{fontSize:11.5,color:'var(--text2)',marginTop:2}}>{s.dose} · {s.timing}</div>
+          </div>))}
+      </div>
+    </div></div>
+  );
+}
+function CoachSupplements({coach,student}){
+  const [items,setItems]=useState(null);
+  const [orig,setOrig]=useState([]);
+  const [picker,setPicker]=useState(false);
+  const [busy,setBusy]=useState(false); const [saved,setSaved]=useState(false);
+  const load=useCallback(async()=>{
+    const {data}=await sb.from('supplements').select('*').eq('student_id',student.id).order('order_index');
+    setItems((data||[]).map(x=>({...x}))); setOrig((data||[]).map(x=>x.id));
+  },[student.id]);
+  useEffect(()=>{load();},[load]);
+  const addLib=s=>setItems(a=>[...(a||[]),{id:genId(),name:s.name,dose:s.dose,timing:s.timing,notes:s.notes}]);
+  const addManual=()=>setItems(a=>[...(a||[]),{id:genId(),name:'',dose:'',timing:'',notes:''}]);
+  const upd=(id,k,v)=>setItems(a=>a.map(i=>i.id===id?{...i,[k]:v}:i));
+  const del=id=>setItems(a=>a.filter(i=>i.id!==id));
+  const save=async()=>{
+    setBusy(true);
+    try{
+      const payload=(items||[]).map((i,idx)=>({id:i.id,student_id:student.id,coach_id:coach.id,name:i.name,dose:i.dose||null,timing:i.timing||null,notes:i.notes||null,order_index:idx}));
+      if(payload.length) await sb.from('supplements').upsert(payload);
+      const cur=payload.map(p=>p.id), rm=orig.filter(id=>!cur.includes(id));
+      if(rm.length) await sb.from('supplements').delete().in('id',rm);
+      await load(); setSaved(true); setTimeout(()=>setSaved(false),1500);
+    }catch(e){ alert(/find the table|PGRST205|does not exist|42P01/.test(e.message||''+e)?'Rode o SQL "patch-suplementos.sql" no Supabase primeiro.':'Erro ao salvar: '+(e.message||e)); }
+    setBusy(false);
+  };
+  if(items===null) return <Spinner/>;
+  return (
+    <div>
+      <div className="alert alert-warn" style={{marginBottom:14}}>💊 Prescreva os suplementos de <b>{(student.name||'aluno').split(' ')[0]}</b>. Sugestões são gerais — ajuste por avaliação/exames. Vitaminas e doses específicas idealmente com acompanhamento médico.</div>
+      <button className="btn btn-secondary btn-block" style={{marginBottom:12}} onClick={()=>setPicker(true)}>＋ Adicionar da biblioteca</button>
+      {(items||[]).map(it=>(
+        <div className="card" key={it.id} style={{marginBottom:11}}>
+          <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:9}}>
+            <FI value={it.name} onChange={e=>upd(it.id,'name',e.target.value)} placeholder="Suplemento"/>
+            <button className="btn-icon" onClick={()=>del(it.id)}>✕</button>
+          </div>
+          <div className="fgrid" style={{gridTemplateColumns:'1fr 1fr'}}>
+            <FI value={it.dose||''} onChange={e=>upd(it.id,'dose',e.target.value)} placeholder="Dose (ex: 5 g)"/>
+            <FI value={it.timing||''} onChange={e=>upd(it.id,'timing',e.target.value)} placeholder="Horário (ex: pós-treino)"/>
+          </div>
+          <div style={{marginTop:9}}><FI value={it.notes||''} onChange={e=>upd(it.id,'notes',e.target.value)} placeholder="Observação (opcional)"/></div>
+        </div>
+      ))}
+      <button className="btn btn-ghost btn-sm btn-block" onClick={addManual}>＋ Adicionar manual</button>
+      <div style={{position:'sticky',bottom:0,padding:'14px 0',marginTop:8}}>
+        <button className="btn btn-primary btn-block" disabled={busy} onClick={save}>{busy?'Salvando…':saved?'✓ Salvo':'💾 Salvar suplementação'}</button>
+      </div>
+      {picker && <SuppPicker onPick={s=>{addLib(s);setPicker(false);}} onClose={()=>setPicker(false)}/>}
+    </div>
+  );
+}
+function StudentSupplements({profile}){
+  const [items,setItems]=useState(null);
+  const [checks,setChecks]=useState({});
+  const today=todayStr();
+  useEffect(()=>{(async()=>{
+    const {data}=await sb.from('supplements').select('*').eq('student_id',profile.id).order('order_index');
+    if(!data||data.length===0){setItems([]);return;}
+    const ck=await sb.from('supplement_checkins').select('supplement_id').eq('student_id',profile.id).eq('day',today);
+    setItems(data); setChecks(Object.fromEntries((ck.data||[]).map(c=>[c.supplement_id,true])));
+  })().catch(()=>setItems([]));},[profile.id,today]);
+  const toggle=async(id)=>{
+    const done=!checks[id]; setChecks(c=>({...c,[id]:done}));
+    if(done) await sb.from('supplement_checkins').upsert({student_id:profile.id,supplement_id:id,day:today},{onConflict:'supplement_id,day'});
+    else await sb.from('supplement_checkins').delete().eq('supplement_id',id).eq('day',today);
+  };
+  if(items===null||items.length===0) return null;
+  const doneN=items.filter(i=>checks[i.id]).length;
+  return (
+    <div className="card" style={{marginBottom:14}}>
+      <div className="sec-title" style={{justifyContent:'space-between'}}>💊 Suplementos de hoje <span style={{color:'var(--text2)',fontWeight:600}}>{doneN}/{items.length}</span></div>
+      {items.map(it=>{const dn=!!checks[it.id];return(
+        <div key={it.id} style={{display:'flex',alignItems:'center',gap:12,padding:'9px 0',borderBottom:'1px solid var(--border)'}}>
+          <div className={`check ${dn?'on':''}`} style={{width:26,height:26,fontSize:13}} onClick={()=>toggle(it.id)}>{dn?'✓':''}</div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontWeight:600,fontSize:14}}>{it.name}</div>
+            <div style={{fontSize:11.5,color:'var(--text2)'}}>{[it.dose,it.timing].filter(Boolean).join(' · ')}</div>
+            {it.notes&&<div style={{fontSize:11,color:'var(--text3)',marginTop:2}}>{it.notes}</div>}
+          </div>
+        </div>);})}
+    </div>
+  );
+}
+
 /* saudação por horário */
 const greetMsg=()=>{const h=new Date().getHours();return h<12?'Bom dia':h<18?'Boa tarde':'Boa noite';};
 
@@ -2307,6 +2436,8 @@ function StudentToday({profile,onTab}){
           <button className="btn btn-secondary btn-sm" onClick={()=>addWater(250)}>+250ml</button>
         </div>
       </div>
+
+      <StudentSupplements profile={profile}/>
 
       {/* Refeições */}
       {meals.map(m=>{
