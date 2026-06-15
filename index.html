@@ -536,11 +536,12 @@ function CoachApp({profile,setProfile}){
   useEffect(()=>{loadStudents();},[loadStudents]);
 
   const nav=v=>{setTab(v);setSel(null);setMenu(false);};
-  const NAV=[['students','👥','Alunos'],['templates','🗂️','Cronogramas'],['code','🔗','Meu código'],['profile','⚙️','Perfil']];
+  const NAV=[['students','👥','Alunos'],['weekly','📈','Resumo'],['templates','🗂️','Cronogramas'],['code','🔗','Meu código'],['profile','⚙️','Perfil']];
   if(profile.is_admin) NAV.push(['admin','🛡️','Admin']);
 
   let content;
   if(sel) content=<CoachStudentDetail key={sel.id} coach={profile} student={sel} onBack={()=>{setSel(null);loadStudents();}}/>;
+  else if(tab==='weekly') content=<CoachWeekly coach={profile} students={students||[]} onSelect={s=>{setSel(s);setMenu(false);}}/>;
   else if(tab==='templates') content=<CoachTemplates coach={profile}/>;
   else if(tab==='admin' && profile.is_admin) content=<AdminPanel profile={profile}/>;
   else if(tab==='code') content=<CoachCode profile={profile}/>;
@@ -1881,6 +1882,130 @@ function StudentAnamnese({profile}){
   );
 }
 
+/* saudação por horário */
+const greetMsg=()=>{const h=new Date().getHours();return h<12?'Bom dia':h<18?'Boa tarde':'Boa noite';};
+
+/* dótinhos de adesão da semana + streak */
+function WeekDots({profile,mealsCount}){
+  const [done,setDone]=useState(null);
+  useEffect(()=>{ if(!mealsCount){setDone(new Set());return;}
+    const since=new Date(); since.setDate(since.getDate()-20);
+    sb.from('checkins').select('meal_id,day').eq('student_id',profile.id).gte('day',dayKey(since))
+      .then(({data})=>setDone(computeDoneDays(data||[],mealsCount)));
+  },[profile.id,mealsCount]);
+  const today=new Date(todayStr()+'T00:00');
+  const dow=(today.getDay()+6)%7;
+  const monday=new Date(today); monday.setDate(today.getDate()-dow);
+  const L=['S','T','Q','Q','S','S','D'];
+  const days=[...Array(7)].map((_,i)=>{const d=new Date(monday); d.setDate(monday.getDate()+i); return d;});
+  const streak=done?streakFrom(done):0;
+  return (
+    <div className="card" style={{marginBottom:14,padding:'15px 16px'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+        <div style={{fontSize:11.5,fontWeight:700,color:'var(--text2)',textTransform:'uppercase',letterSpacing:.6}}>Sua semana</div>
+        {streak>0 && <div style={{fontSize:13,fontWeight:700,color:'var(--accent)'}}>🔥 {streak} dia{streak>1?'s':''}</div>}
+      </div>
+      <div style={{display:'flex',justifyContent:'space-between'}}>
+        {days.map((d,i)=>{const k=dayKey(d), isDone=done&&done.has(k), isToday=k===todayStr();
+          return (<div key={i} style={{textAlign:'center'}}>
+            <div style={{width:30,height:30,borderRadius:'50%',margin:'0 auto',display:'flex',alignItems:'center',justifyContent:'center',
+              background:isDone?'var(--accent)':'transparent',
+              border:isDone?'none':'2px solid '+(isToday?'var(--accent)':'var(--border2)'),
+              color:isDone?'var(--cream)':'var(--text3)',fontSize:14,fontWeight:800}}>{isDone?'✓':''}</div>
+            <div style={{fontSize:10,color:isToday?'var(--accent)':'var(--text3)',marginTop:5,fontWeight:isToday?700:500}}>{L[i]}</div>
+          </div>);})}
+      </div>
+    </div>
+  );
+}
+
+/* diário do dia */
+const DIARY=[{k:'energy',ic:'⚡',lbl:'Energia'},{k:'mood',ic:'😊',lbl:'Humor'},{k:'sleep',ic:'😴',lbl:'Sono'},{k:'hunger',ic:'🍽️',lbl:'Fome'}];
+function DailyDiary({profile}){
+  const [v,setV]=useState({energy:0,mood:0,sleep:0,hunger:0,note:''});
+  const [saved,setSaved]=useState(false);
+  const today=todayStr();
+  useEffect(()=>{ sb.from('daily_logs').select('*').eq('student_id',profile.id).eq('day',today).maybeSingle()
+    .then(({data})=>{ if(data) setV({energy:data.energy||0,mood:data.mood||0,sleep:data.sleep||0,hunger:data.hunger||0,note:data.note||''}); }).catch(()=>{}); },[profile.id,today]);
+  const save=async()=>{
+    try{ await sb.from('daily_logs').upsert({student_id:profile.id,day:today,energy:v.energy||null,mood:v.mood||null,sleep:v.sleep||null,hunger:v.hunger||null,note:v.note||null},{onConflict:'student_id,day'});
+      setSaved(true); setTimeout(()=>setSaved(false),1500);
+    }catch(e){ alert(/find the table|PGRST205|does not exist|42P01/.test(e.message||''+e)?'Rode o SQL "patch-diario.sql" no Supabase primeiro.':'Erro: '+(e.message||e)); }
+  };
+  return (
+    <div className="card" style={{marginBottom:14}}>
+      <div className="sec-title">📔 Como foi seu dia?</div>
+      {DIARY.map(d=>(
+        <div key={d.k} style={{marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:7}}>{d.ic} {d.lbl}</div>
+          <div style={{display:'flex',gap:7}}>
+            {[1,2,3,4,5].map(n=>(
+              <button key={n} onClick={()=>setV({...v,[d.k]:n})} style={{flex:1,height:38,borderRadius:9,
+                border:'1px solid '+(v[d.k]>=n?'var(--accent)':'var(--border2)'),
+                background:v[d.k]>=n?'var(--accent)':'var(--bg2)',color:v[d.k]>=n?'var(--cream)':'var(--text3)',fontWeight:700,cursor:'pointer',fontSize:13}}>{n}</button>))}
+          </div>
+        </div>
+      ))}
+      <FTA label="Conta como foi (opcional)" value={v.note} onChange={e=>setV({...v,note:e.target.value})} placeholder="Treino, alimentação, sensações…"/>
+      <button className="btn btn-green btn-block" style={{marginTop:12}} onClick={save}>{saved?'✓ Diário salvo':'Salvar diário'}</button>
+    </div>
+  );
+}
+
+/* resumo semanal de cada aluno (treinador) */
+function CoachWeekly({coach,students,onSelect}){
+  const [data,setData]=useState(null);
+  useEffect(()=>{(async()=>{
+    if(!students||students.length===0){setData({});return;}
+    const ids=students.map(s=>s.id);
+    const t=new Date(todayStr()+'T00:00'); const dow=(t.getDay()+6)%7; const mon=new Date(t); mon.setDate(t.getDate()-dow);
+    const monday=dayKey(mon); const s14=new Date(); s14.setDate(s14.getDate()-14);
+    const [ck,cd,wl,dl,an]=await Promise.all([
+      sb.from('checkins').select('student_id,day').in('student_id',ids).gte('day',monday),
+      sb.from('cardio_logs').select('student_id,day').in('student_id',ids).gte('day',monday),
+      sb.from('weight_logs').select('student_id,weight,day').in('student_id',ids).gte('day',dayKey(s14)).order('day',{ascending:true}),
+      sb.from('daily_logs').select('student_id,energy,mood,day').in('student_id',ids).gte('day',monday),
+      sb.from('anamneses').select('student_id,status').eq('coach_id',coach.id).eq('status','pending'),
+    ]);
+    const map={}; ids.forEach(id=>map[id]={days:new Set(),cardio:0,weights:[],energy:[],mood:[],anam:false,last:null});
+    (ck.data||[]).forEach(c=>{const m=map[c.student_id];if(m){m.days.add(c.day);if(!m.last||c.day>m.last)m.last=c.day;}});
+    (cd.data||[]).forEach(c=>{map[c.student_id]&&map[c.student_id].cardio++;});
+    (wl.data||[]).forEach(w=>{map[w.student_id]&&map[w.student_id].weights.push(w);});
+    (dl.data||[]).forEach(d=>{const m=map[d.student_id];if(m){if(d.energy)m.energy.push(d.energy);if(d.mood)m.mood.push(d.mood);}});
+    (an.data||[]).forEach(a=>{map[a.student_id]&&(map[a.student_id].anam=true);});
+    setData(map);
+  })();},[students,coach.id]);
+  if(data===null) return <Spinner/>;
+  const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+  return (
+    <div>
+      <div className="abar"><div><div className="ph-title">📈 Resumo semanal</div>
+        <div className="ph-sub">Como cada aluno está nesta semana</div></div></div>
+      {(!students||students.length===0) ? <div className="empty"><div className="empty-icon">👥</div><div className="empty-title">Nenhum aluno ainda</div></div> :
+      students.map(s=>{const d=data[s.id]||{}; const dias=d.days?d.days.size:0; const w=d.weights||[];
+        const wD=w.length>=2?+(w[w.length-1].weight-w[0].weight).toFixed(1):null;
+        const en=avg(d.energy||[]), mo=avg(d.mood||[]);
+        const ds=d.last?Math.floor((new Date(todayStr())-new Date(d.last))/86400000):null;
+        return (
+          <div className="card" key={s.id} style={{marginBottom:11,cursor:'pointer'}} onClick={()=>onSelect(s)}>
+            <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:11}}>
+              <div className="avatar" style={{width:40,height:40,fontSize:15}}>{s.photo_url?<img src={s.photo_url}/>:initials(s.name)}</div>
+              <div style={{flex:1,minWidth:0}}><div style={{fontWeight:700,fontSize:15}}>{s.name||'(sem nome)'}</div>
+                <div style={{fontSize:11,color:ds===0?'var(--sage)':ds>3?'var(--red)':'var(--text2)'}}>{ds===null?'Sem registros esta semana':ds===0?'● Ativo hoje':`Último registro há ${ds}d`}</div></div>
+              {d.anam && <span className="badge" style={{background:'var(--gold-dim)',color:'#8a6a37'}}>📋 anamnese</span>}
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
+              {[['Dias ativos',dias+'/7'],['Cardios',d.cardio||0],['Peso 14d',wD==null?'—':(wD>0?'+':'')+wD+'kg'],['Energia/Humor',(en?en.toFixed(1):'—')+'/'+(mo?mo.toFixed(1):'—')]].map(([l,val],i)=>(
+                <div key={i}><div style={{color:'var(--text2)',fontSize:9.5,textTransform:'uppercase',letterSpacing:.3}}>{l}</div>
+                  <div style={{fontWeight:600,fontFamily:'var(--serif)',fontSize:17,color:i===2&&wD!=null?(wD<=0?'var(--sage)':'var(--accent3)'):'var(--text)'}}>{val}</div></div>))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function StudentApp({profile,setProfile}){
   const [tab,setTab]=useState('today');
   if(!profile.coach_id) return <LinkCoach profile={profile} setProfile={setProfile}/>;
@@ -1992,11 +2117,12 @@ function StudentToday({profile,onTab}){
 
   return (
     <div>
-      <div style={{marginBottom:14}}><div className="ph-title">{plan.title||'Hoje'}</div>
-        <div className="ph-sub">{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</div></div>
+      <div style={{marginBottom:14}}>
+        <div className="ph-title">{greetMsg()}, {(profile.name||'').split(' ')[0]||'aluno'} 👋</div>
+        <div className="ph-sub" style={{textTransform:'capitalize'}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</div></div>
 
       <AnamneseBanner profile={profile} onOpen={()=>onTab&&onTab('chat')}/>
-      <StreakBanner profile={profile} mealsCount={meals.length}/>
+      <WeekDots profile={profile} mealsCount={meals.length}/>
       <MealReminders profile={profile} meals={meals}/>
 
       <div className="kcal-hero" style={{margin:'14px 0'}}>
@@ -2068,8 +2194,10 @@ function StudentToday({profile,onTab}){
       })}
 
       <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={e=>sendMealPhoto(e.target.files[0])}/>
-      <button className="btn btn-secondary btn-block" style={{marginTop:14}} disabled={uploading} onClick={()=>fileRef.current.click()}>
+      <button className="btn btn-secondary btn-block" style={{margin:'14px 0'}} disabled={uploading} onClick={()=>fileRef.current.click()}>
         {uploading?'Enviando…':'📷 Enviar foto da refeição'}</button>
+
+      <DailyDiary profile={profile}/>
     </div>
   );
 }
