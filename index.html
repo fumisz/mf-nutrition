@@ -546,7 +546,7 @@ function CoachApp({profile,setProfile}){
   else if(tab==='admin' && profile.is_admin) content=<AdminPanel profile={profile}/>;
   else if(tab==='code') content=<CoachCode profile={profile}/>;
   else if(tab==='profile') content=<CoachProfile profile={profile} setProfile={setProfile}/>;
-  else content=<CoachStudents students={students} onSelect={s=>{setSel(s);setMenu(false);}} code={profile.coach_code}/>;
+  else content=<CoachStudents students={students} onSelect={s=>{setSel(s);setMenu(false);}} code={profile.coach_code} coach={profile}/>;
 
   return (
     <div className="app">
@@ -571,39 +571,87 @@ function CoachApp({profile,setProfile}){
   );
 }
 
-function CoachStudents({students,onSelect,code}){
+function CoachStudents({students,onSelect,code,coach}){
+  const [act,setAct]=useState(null);
+  useEffect(()=>{(async()=>{
+    if(!students||students.length===0){setAct({map:{},feed:[],activeToday:0,pendAnam:0,inactive:0});return;}
+    const ids=students.map(s=>s.id);
+    const t=new Date(todayStr()+'T00:00'); const dow=(t.getDay()+6)%7; const mon=new Date(t); mon.setDate(t.getDate()-dow);
+    const since3=new Date(); since3.setDate(since3.getDate()-3);
+    const [ck,ph,an]=await Promise.all([
+      sb.from('checkins').select('student_id,day').in('student_id',ids).gte('day',dayKey(mon)),
+      sb.from('photos').select('student_id,kind,created_at').in('student_id',ids).gte('created_at',dayKey(since3)).order('created_at',{ascending:false}),
+      sb.from('anamneses').select('student_id,status,answered_at').eq('coach_id',coach.id),
+    ]);
+    const nameOf=id=>{const s=students.find(x=>x.id===id);return s?(s.name||'Aluno').split(' ')[0]:'Aluno';};
+    const map={}; ids.forEach(id=>map[id]={today:false,last:null});
+    (ck.data||[]).forEach(c=>{const m=map[c.student_id];if(m){if(c.day===todayStr())m.today=true;if(!m.last||c.day>m.last)m.last=c.day;}});
+    const feed=[];
+    Object.entries(map).forEach(([id,m])=>{ if(m.today) feed.push({ic:'🔥',t:`${nameOf(id)} está em dia hoje`,tone:'good',ts:todayStr()+'z'}); });
+    (ph.data||[]).forEach(p=>feed.push({ic:p.kind==='progress'?'📸':'🍽️',t:`${nameOf(p.student_id)} enviou ${p.kind==='progress'?'foto de progresso':'foto da refeição'}`,tone:'',ts:p.created_at}));
+    (an.data||[]).forEach(a=>{ if(a.status==='answered'&&a.answered_at) feed.push({ic:'📋',t:`${nameOf(a.student_id)} respondeu a anamnese`,tone:'good',ts:a.answered_at}); });
+    Object.entries(map).forEach(([id,m])=>{ const ds=m.last?Math.floor((new Date(todayStr())-new Date(m.last))/86400000):999;
+      if(ds>=3) feed.push({ic:'⚠️',t:`${nameOf(id)} ${m.last?`sem registro há ${ds} dias`:'ainda não registrou nada'}`,tone:'warn',ts:'0'}); });
+    feed.sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));
+    const activeToday=Object.values(map).filter(m=>m.today).length;
+    const pendAnam=(an.data||[]).filter(a=>a.status==='pending').length;
+    const inactive=Object.values(map).filter(m=>{const ds=m.last?Math.floor((new Date(todayStr())-new Date(m.last))/86400000):999;return ds>=3;}).length;
+    setAct({map,feed:feed.slice(0,12),activeToday,pendAnam,inactive});
+  })();},[students,coach.id]);
   if(students===null) return <Spinner/>;
+  const fn=(coach.name||'').split(' ')[0];
   return (
     <div>
-      <div className="abar"><div><div className="ph-title">Alunos</div>
-        <div className="ph-sub">{students.length} aluno{students.length!==1?'s':''} vinculado{students.length!==1?'s':''}</div></div></div>
+      <div style={{marginBottom:18}}>
+        <div className="ph-title">{greetMsg()}, {fn||'treinador'} 👋</div>
+        <div className="ph-sub" style={{textTransform:'capitalize'}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</div>
+      </div>
 
-      {students.length===0 && (
+      <div className="stat-grid">
+        <div className="stat"><div className="stat-lbl">Alunos</div><div className="stat-val">{students.length}</div></div>
+        <div className="stat"><div className="stat-lbl">Ativos hoje</div><div className="stat-val" style={{color:'var(--sage)'}}>{act?act.activeToday:'—'}</div></div>
+        <div className="stat"><div className="stat-lbl">Sumidos 3d+</div><div className="stat-val" style={{color:act&&act.inactive?'var(--red)':''}}>{act?act.inactive:'—'}</div></div>
+        <div className="stat"><div className="stat-lbl">Anamnese pend.</div><div className="stat-val">{act?act.pendAnam:'—'}</div></div>
+      </div>
+
+      {students.length===0 ? (
         <div className="card" style={{marginBottom:16}}>
           <div className="sec-title">🔗 Como adicionar alunos</div>
           <p style={{fontSize:13,lineHeight:1.7,color:'var(--text2)'}}>
-            Seus alunos se cadastram sozinhos no app e digitam o seu código abaixo para vincular a você.
-            Compartilhe o código por WhatsApp.</p>
+            Seus alunos se cadastram sozinhos no app e digitam o seu código abaixo para vincular a você. Compartilhe por WhatsApp.</p>
           <div className="code-box" style={{marginTop:14}}>
             <div style={{fontSize:11,color:'var(--text2)',marginBottom:6}}>SEU CÓDIGO DE TREINADOR</div>
             <div className="code-val">{code}</div>
           </div>
         </div>
+      ) : (
+        <div className="card" style={{marginBottom:16}}>
+          <div className="sec-title">🔔 Atividade recente</div>
+          {!act ? <Spinner/> : act.feed.length===0 ? <div className="muted" style={{fontSize:13}}>Sem novidades ainda. Quando seus alunos baterem o plano, enviarem fotos ou responderem à anamnese, aparece aqui.</div> :
+            act.feed.map((f,i)=>(
+              <div key={i} style={{display:'flex',alignItems:'center',gap:11,padding:'9px 0',borderBottom:i<act.feed.length-1?'1px solid var(--border)':'none'}}>
+                <span style={{fontSize:18}}>{f.ic}</span>
+                <span style={{fontSize:13,color:f.tone==='warn'?'var(--red)':f.tone==='good'?'var(--text)':'var(--text2)',flex:1}}>{f.t}</span>
+              </div>))}
+        </div>
       )}
 
+      {students.length>0 && <div style={{fontSize:13,fontWeight:600,margin:'4px 0 12px',color:'var(--text2)'}}>Seus alunos</div>}
       <div className="student-grid">
-        {students.map(s=>(
+        {students.map(s=>{const m=act&&act.map[s.id];
+          const ds=m&&m.last?Math.floor((new Date(todayStr())-new Date(m.last))/86400000):null;
+          const st=m&&m.today?{t:'Em dia hoje',c:'var(--sage)'}:ds===null?{t:'Sem registros',c:'var(--text3)'}:ds>=3?{t:`Há ${ds}d sem registro`,c:'var(--red)'}:{t:`Ativo há ${ds}d`,c:'var(--text2)'};
+          return (
           <div key={s.id} className="student-card" onClick={()=>onSelect(s)}>
             <div style={{display:'flex',alignItems:'center',gap:12}}>
               <div className="avatar">{s.photo_url?<img src={s.photo_url}/>:initials(s.name)}</div>
-              <div style={{minWidth:0}}>
+              <div style={{minWidth:0,flex:1}}>
                 <div style={{fontSize:15,fontWeight:700}}>{s.name||'(sem nome)'}</div>
-                <div style={{fontSize:12,color:'var(--text2)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                  {s.goal||s.email||'—'}</div>
+                <div style={{fontSize:11.5,color:st.c,fontWeight:600,marginTop:2}}>● {st.t}</div>
               </div>
             </div>
-          </div>
-        ))}
+          </div>);
+        })}
       </div>
     </div>
   );
@@ -657,6 +705,83 @@ function CoachProfile({profile,setProfile}){
   );
 }
 
+/* ════════════════ SEED: 40 cronogramas prontos (base científica) ════════════════ */
+const BLUEPRINTS = {
+  HYPER:[
+    {name:'Café da manhã',time:'07:00',items:[['Aveia em flocos',60],['Whey protein (pó)',30],['Banana',100],['Pasta de amendoim',15]]},
+    {name:'Lanche da manhã',time:'10:00',items:[['Pão de forma integral',50],['Ovo inteiro cozido',100],['Mamão',120]]},
+    {name:'Almoço',time:'13:00',items:[['Arroz branco cozido',180],['Feijão carioca cozido',80],['Peito de frango grelhado',160],['Brócolis cozido',100]]},
+    {name:'Pré-treino',time:'16:00',items:[['Batata doce cozida',160],['Peito de frango grelhado',120]]},
+    {name:'Jantar',time:'20:00',items:[['Arroz integral cozido',120],['Carne moída (patinho)',140],['Abobrinha cozida',120]]},
+    {name:'Ceia',time:'22:30',items:[['Iogurte grego natural',150],['Whey protein (pó)',15]]},
+  ],
+  CUT:[
+    {name:'Café da manhã',time:'07:00',items:[['Ovo inteiro cozido',100],['Clara de ovo cozida',120],['Aveia em flocos',40]]},
+    {name:'Lanche da manhã',time:'10:00',items:[['Iogurte grego natural',170],['Morango',120]]},
+    {name:'Almoço',time:'13:00',items:[['Arroz branco cozido',120],['Peito de frango grelhado',160],['Feijão carioca cozido',60],['Brócolis cozido',120]]},
+    {name:'Lanche da tarde',time:'16:00',items:[['Whey protein (pó)',30],['Maçã',130]]},
+    {name:'Jantar',time:'20:00',items:[['Tilápia grelhada',160],['Batata doce cozida',120],['Abobrinha cozida',120]]},
+  ],
+  MAINT:[
+    {name:'Café da manhã',time:'07:00',items:[['Tapioca (goma)',45],['Ovo inteiro cozido',100],['Banana',100]]},
+    {name:'Lanche da manhã',time:'10:00',items:[['Iogurte grego natural',170],['Granola',30]]},
+    {name:'Almoço',time:'13:00',items:[['Arroz branco cozido',150],['Feijão carioca cozido',80],['Peito de frango grelhado',150],['Cenoura crua',80],['Brócolis cozido',80]]},
+    {name:'Lanche da tarde',time:'16:30',items:[['Pão de forma integral',50],['Peito de peru',60],['Queijo minas frescal',30]]},
+    {name:'Jantar',time:'20:00',items:[['Arroz integral cozido',100],['Carne moída (patinho)',130],['Abobrinha cozida',120]]},
+  ],
+  LOWCARB:[
+    {name:'Café da manhã',time:'07:30',items:[['Ovo inteiro cozido',150],['Abacate',60]]},
+    {name:'Almoço',time:'12:30',items:[['Peito de frango grelhado',180],['Brócolis cozido',150],['Azeite de oliva extra virgem',8]]},
+    {name:'Lanche da tarde',time:'16:00',items:[['Whey protein (pó)',30],['Castanha de caju',25]]},
+    {name:'Jantar',time:'20:00',items:[['Salmão grelhado',150],['Abobrinha cozida',150],['Azeite de oliva extra virgem',6]]},
+  ],
+};
+const SEED_PLANS=[
+  ['Hipertrofia Masculina','HYPER',[2600,2800,3000,3200,3500]],
+  ['Hipertrofia Feminina','HYPER',[1900,2100,2300,2500]],
+  ['Emagrecimento Feminino','CUT',[1200,1400,1600,1800]],
+  ['Emagrecimento Masculino','CUT',[1700,1900,2100,2300]],
+  ['Manutenção Feminina','MAINT',[1700,1900,2100]],
+  ['Manutenção Masculina','MAINT',[2300,2500,2700]],
+  ['Low Carb','LOWCARB',[1400,1600,1800,2000]],
+  ['Definição Masculina','CUT',[2000,2200,2400,2600]],
+  ['Definição Feminina','CUT',[1500,1700,1900]],
+  ['Recomposição Corporal','MAINT',[2000,2200,2400]],
+  ['Bulking Masculino','HYPER',[3300,3600,3800]],
+];
+function foodMacros(name){ return NATIVE_FOODS.find(f=>f.name===name); }
+function blueprintMeals(style,target){
+  const bp=BLUEPRINTS[style]; let base=0;
+  bp.forEach(m=>m.items.forEach(([fn,g])=>{const f=foodMacros(fn); if(f) base+=f.kcal*g/100;}));
+  const factor=base>0?target/base:1;
+  return bp.map(m=>({ id:genId(), name:m.name, time:m.time, notes:'',
+    items:m.items.map(([fn,g])=>{ const f=foodMacros(fn); if(!f) return null;
+      const grams=Math.max(5,Math.round((g*factor)/5)*5), k=grams/100;
+      return {id:genId(),food:fn,qty:grams+' g',kcal:Math.round(f.kcal*k),protein:+(f.protein*k).toFixed(1),carb:+(f.carb*k).toFixed(1),fat:+(f.fat*k).toFixed(1),prep:f.preparo,subs:[]};
+    }).filter(Boolean)
+  }));
+}
+async function importSeedTemplates(coachId,onProgress){
+  const {data:ex}=await sb.from('plan_templates').select('title').eq('coach_id',coachId);
+  const have=new Set((ex||[]).map(t=>t.title));
+  const total=SEED_PLANS.reduce((a,p)=>a+p[2].length,0); let n=0, added=0;
+  for(const [goal,style,targets] of SEED_PLANS){
+    for(const tgt of targets){
+      n++; const title=`${goal} ${tgt}kcal`;
+      onProgress&&onProgress(n,total);
+      if(have.has(title)) continue;
+      const meals=blueprintMeals(style,tgt);
+      const {data:t,error}=await sb.from('plan_templates').insert({coach_id:coachId,title,notes:'Cronograma base · ajuste conforme o aluno.',water_goal_ml:tgt>2500?3500:3000}).select().single();
+      if(error) throw error;
+      const {mealsP,itemsP}=buildTemplatePayload(meals,t.id);
+      if(mealsP.length) await sb.from('template_meals').insert(mealsP);
+      if(itemsP.length) await sb.from('template_items').insert(itemsP);
+      added++;
+    }
+  }
+  return added;
+}
+
 /* ──────── Painel de Admin (só dono): gerenciar códigos de venda ──────── */
 function AdminPanel({profile}){
   const [invites,setInvites]=useState(null);
@@ -664,6 +789,7 @@ function AdminPanel({profile}){
   const [nc,setNc]=useState({code:'',label:'',unlimited:false});
   const [busy,setBusy]=useState(false);
   const [copied,setCopied]=useState(null);
+  const [imp,setImp]=useState(null); // {n,total} | 'done'
   const load=useCallback(async()=>{
     const [inv,coaches,students]=await Promise.all([
       sb.from('coach_invites').select('*').order('created_at',{ascending:false}),
@@ -674,6 +800,14 @@ function AdminPanel({profile}){
     setStats({coaches:coaches.count||0, students:students.count||0});
   },[]);
   useEffect(()=>{load();},[load]);
+
+  const importSeed=async()=>{
+    if(!confirm('Importar 40 cronogramas prontos para a sua conta? (não duplica os que já existem)')) return;
+    setImp({n:0,total:40});
+    try{ const added=await importSeedTemplates(profile.id,(n,total)=>setImp({n,total}));
+      setImp('done'); alert(added>0?`✅ ${added} cronograma(s) importado(s)! Veja na aba Cronogramas.`:'Todos os cronogramas já estavam importados.');
+    }catch(e){ setImp(null); alert('Erro ao importar: '+(e.message||e)); }
+  };
 
   const gen=()=>setNc(n=>({...n,code:Math.random().toString(36).slice(2,8).toUpperCase()}));
   const create=async()=>{
@@ -701,6 +835,15 @@ function AdminPanel({profile}){
         <div className="stat"><div className="stat-lbl">Treinadores</div><div className="stat-val">{stats?stats.coaches:'—'}</div></div>
         <div className="stat"><div className="stat-lbl">Alunos (total)</div><div className="stat-val">{stats?stats.students:'—'}</div></div>
         <div className="stat"><div className="stat-lbl">Códigos ativos</div><div className="stat-val">{invites?invites.filter(i=>i.active).length:'—'}</div></div>
+      </div>
+
+      <div className="card" style={{marginBottom:14}}>
+        <div className="sec-title">📥 Cronogramas prontos</div>
+        <p style={{fontSize:13,color:'var(--text2)',lineHeight:1.6,marginBottom:12}}>
+          Importa <b>40 cronogramas base</b> (emagrecimento, manutenção, hipertrofia, low carb, definição…) com alimentos simples e nomeados por kcal — ex.: <i>“Hipertrofia Masculina 3000kcal”</i>. Depois é só aplicar nos alunos e ajustar.</p>
+        {imp && imp!=='done' && <div className="bar" style={{height:8,marginBottom:10}}><div className="bar-fill" style={{width:(imp.n/imp.total*100)+'%',background:'var(--accent)'}}/></div>}
+        <button className="btn btn-primary btn-block" disabled={!!imp&&imp!=='done'} onClick={importSeed}>
+          {imp&&imp!=='done'?`Importando… ${imp.n}/${imp.total}`:'📥 Importar 40 cronogramas'}</button>
       </div>
 
       <div className="card" style={{marginBottom:14}}>
@@ -1352,16 +1495,26 @@ function TemplateEditor({coach,template,onBack}){
 function CoachTemplates({coach}){
   const [tpls,setTpls]=useState(null);
   const [edit,setEdit]=useState(null);
+  const [imp,setImp]=useState(null);
   const load=useCallback(async()=>{ const {data}=await sb.from('plan_templates').select('*').eq('coach_id',coach.id).order('created_at',{ascending:false}); setTpls(data||[]); },[coach.id]);
   useEffect(()=>{load();},[load]);
   const del=async(t)=>{ if(!confirm('Excluir o cronograma “'+t.title+'”?'))return; await sb.from('plan_templates').delete().eq('id',t.id); load(); };
+  const importSeed=async()=>{
+    if(!confirm('Importar 40 cronogramas prontos (emagrecimento, manutenção, hipertrofia, low carb…)? Não duplica os que já existem.')) return;
+    setImp({n:0,total:40});
+    try{ const added=await importSeedTemplates(coach.id,(n,total)=>setImp({n,total}));
+      setImp(null); await load(); alert(added>0?`✅ ${added} cronograma(s) importado(s)!`:'Todos já estavam importados.');
+    }catch(e){ setImp(null); alert('Erro ao importar: '+(e.message||e)); }
+  };
   if(edit) return <TemplateEditor coach={coach} template={edit==='new'?null:edit} onBack={()=>{setEdit(null);load();}}/>;
   if(tpls===null) return <Spinner/>;
   return (
     <div>
       <div className="abar"><div><div className="ph-title">Cronogramas</div>
         <div className="ph-sub">Modelos de plano para reaproveitar em vários alunos</div></div>
-        <button className="btn btn-primary" onClick={()=>setEdit('new')}>＋ Novo cronograma</button></div>
+        <div className="bgroup">
+          <button className="btn btn-secondary" disabled={!!imp} onClick={importSeed}>{imp?`Importando ${imp.n}/${imp.total}…`:'📥 Importar 40 prontos'}</button>
+          <button className="btn btn-primary" onClick={()=>setEdit('new')}>＋ Novo cronograma</button></div></div>
       {tpls.length===0 ? <div className="empty"><div className="empty-icon">🗂️</div>
         <div className="empty-title">Nenhum cronograma salvo</div>
         <p style={{fontSize:13}}>Crie modelos de plano aqui, ou salve o plano de um aluno como cronograma. Depois aplique em quem quiser com um clique.</p>
