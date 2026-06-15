@@ -753,7 +753,7 @@ function AdminPanel({profile}){
 /* ──────── Detalhe do aluno (treinador): abas Plano / Registros / Chat ──────── */
 function CoachStudentDetail({coach,student,onBack}){
   const [tab,setTab]=useState('plan');
-  const TABS=[['plan','🍽️ Plano'],['logs','📊 Registros'],['chat','💬 Conversa']];
+  const TABS=[['plan','🍽️ Plano'],['anamnese','📋 Anamnese'],['preview','👁️ Visão'],['logs','📊 Registros'],['chat','💬 Conversa']];
   return (
     <div>
       <div className="abar">
@@ -769,8 +769,77 @@ function CoachStudentDetail({coach,student,onBack}){
         {TABS.map(([v,l])=><button key={v} className={tab===v?'on':''} onClick={()=>setTab(v)}>{l}</button>)}
       </div>
       {tab==='plan' && <PlanEditor coach={coach} student={student}/>}
+      {tab==='anamnese' && <CoachAnamnese coach={coach} student={student}/>}
+      {tab==='preview' && <StudentPreview student={student}/>}
       {tab==='logs' && <CoachLogs student={student}/>}
       {tab==='chat' && <ChatPanel me={coach} studentId={student.id} myName={coach.name}/>}
+    </div>
+  );
+}
+
+/* ──────── Visão do aluno (preview read-only p/ o treinador) ──────── */
+function StudentPreview({student}){
+  const [plan,setPlan]=useState(undefined);
+  const [meals,setMeals]=useState([]);
+  const [checks,setChecks]=useState({});
+  const [open,setOpen]=useState({});
+  useEffect(()=>{(async()=>{
+    const p=await getActivePlan(student.id);
+    if(!p){setPlan(null);return;}
+    const tree=await loadPlanTree(p.id);
+    const ck=await sb.from('checkins').select('meal_id').eq('student_id',student.id).eq('day',todayStr());
+    setPlan(p); setMeals(tree); setChecks(Object.fromEntries((ck.data||[]).map(c=>[c.meal_id,true])));
+  })();},[student.id]);
+  if(plan===undefined) return <Spinner/>;
+  if(plan===null) return <div className="empty"><div className="empty-icon">🍽️</div>
+    <div className="empty-title">Sem plano ativo</div><p style={{fontSize:13}}>Monte o plano na aba “Plano”.</p></div>;
+  const total=sumMeals(meals), done=meals.filter(m=>checks[m.id]), consumed=sumMeals(done);
+  const R=34,C=2*Math.PI*R,pct=total.kcal>0?Math.min(consumed.kcal/total.kcal,1):0;
+  return (
+    <div>
+      <div className="alert alert-info" style={{marginBottom:14}}>👁️ Assim <b>{(student.name||'o aluno').split(' ')[0]}</b> vê o plano hoje, no app dele. Aqui é só leitura.</div>
+      <div className="kcal-hero" style={{marginBottom:14}}>
+        <div>
+          <div style={{fontSize:11,color:'var(--text2)',fontWeight:600,textTransform:'uppercase',letterSpacing:.5}}>Consumido hoje</div>
+          <div className="kcal-big">{r0(consumed.kcal)}<span style={{fontSize:15,color:'var(--text2)'}}> / {r0(total.kcal)} kcal</span></div>
+          <div style={{fontSize:12,color:'var(--text2)',marginTop:6}}>{done.length} de {meals.length} refeições marcadas</div>
+        </div>
+        <div style={{position:'relative',width:84,height:84,flexShrink:0}}>
+          <svg width="84" height="84" className="ring"><circle className="ring-bg" cx="42" cy="42" r={R} fill="none" strokeWidth="8"/>
+            <circle className="ring-fg" cx="42" cy="42" r={R} fill="none" strokeWidth="8" strokeDasharray={C} strokeDashoffset={C*(1-pct)}/></svg>
+          <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:16}}>{Math.round(pct*100)}%</div>
+        </div>
+      </div>
+      <MacroRow s={total}/>
+      <div style={{fontSize:11,color:'var(--text3)',textAlign:'center',marginTop:-6,marginBottom:14}}>Metas diárias do plano</div>
+      {meals.map(m=>{ const ms=sumItems(m.items), dn=!!checks[m.id], isOpen=open[m.id]!==false;
+        return (
+          <div className="meal" key={m.id}>
+            <div className={`meal-head ${dn?'done':''}`} onClick={()=>setOpen(o=>({...o,[m.id]:o[m.id]===false}))}>
+              <div className={`check ${dn?'on':''}`}>{dn?'✓':''}</div>
+              <div style={{flex:1,minWidth:0}}>
+                {m.time&&<div className="meal-time">{m.time}</div>}
+                <div className="meal-name">{m.name}</div>
+                <div className="meal-kcal">{r0(ms.kcal)} kcal · P{r0(ms.protein)} C{r0(ms.carb)} G{r0(ms.fat)}</div>
+              </div>
+              <div style={{color:'var(--text3)',fontSize:13}}>{isOpen?'▲':'▼'}</div>
+            </div>
+            {isOpen && <div className="meal-body">
+              {m.notes&&<div className="alert alert-info" style={{margin:'10px 0'}}>{m.notes}</div>}
+              {m.items.map(it=>(
+                <div className="item-row" key={it.id}><span className="item-dot">•</span>
+                  <div style={{flex:1}}>
+                    <div className="item-food">{it.food} {it.qty&&<span className="item-qty">— {it.qty}</span>}</div>
+                    <div className="item-macros">{r0(it.kcal)} kcal · P{r0(it.protein)} C{r0(it.carb)} G{r0(it.fat)}</div>
+                    {it.prep&&<div style={{fontSize:11.5,color:'var(--gold)',marginTop:3}}>👨‍🍳 {it.prep}</div>}
+                    {it.subs.length>0&&<div style={{fontSize:11.5,color:'var(--blue)',marginTop:3}}>🔄 {it.subs.length} substituição{it.subs.length>1?'ões':''}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1616,6 +1685,202 @@ function Achievements({profile,weights}){
   );
 }
 
+/* ════════════════════ ANAMNESE ════════════════════ */
+const DEFAULT_ANAMNESE = [
+  {s:'Dados e rotina', q:'Profissão / o que você faz no dia a dia?'},
+  {s:'Dados e rotina', q:'Quantas horas trabalha por dia? Passa mais tempo sentado(a) ou em pé?'},
+  {s:'Dados e rotina', q:'Como é sua rotina de sono (horário de dormir/acordar e qualidade)?'},
+  {s:'Dados e rotina', q:'Nível de estresse no dia a dia (de 1 a 10)?'},
+  {s:'Dados e rotina', q:'Consome bebida alcoólica? Com que frequência?'},
+  {s:'Dados e rotina', q:'É fumante?'},
+  {s:'Saúde', q:'Tem alguma doença ou condição de saúde diagnosticada?'},
+  {s:'Saúde', q:'Faz uso de algum medicamento? Quais?'},
+  {s:'Saúde', q:'Tem alergia ou intolerância a algum alimento?'},
+  {s:'Saúde', q:'Já teve alguma lesão ou sente dores articulares? Onde?'},
+  {s:'Saúde', q:'Histórico familiar de doenças (diabetes, hipertensão, colesterol, etc.)?'},
+  {s:'Saúde', q:'(Se aplicável) Ciclo menstrual regular? Usa anticoncepcional?'},
+  {s:'Alimentação', q:'Descreva como é sua alimentação hoje, num dia típico.'},
+  {s:'Alimentação', q:'Quantas refeições você faz por dia?'},
+  {s:'Alimentação', q:'Com que frequência come fora de casa ou pede delivery?'},
+  {s:'Alimentação', q:'Quais alimentos você NÃO abre mão?'},
+  {s:'Alimentação', q:'Quais alimentos você não gosta ou não come?'},
+  {s:'Alimentação', q:'Quanto de água costuma beber por dia?'},
+  {s:'Alimentação', q:'Já fez dieta antes? Como foi a experiência?'},
+  {s:'Alimentação', q:'Costuma sentir compulsão ou beliscar fora de hora? Em quais momentos?'},
+  {s:'Treino', q:'Treina atualmente? Há quanto tempo?'},
+  {s:'Treino', q:'Quantas vezes por semana, em quais dias e horários consegue treinar?'},
+  {s:'Treino', q:'Que tipo de treino faz (musculação, corrida, funcional, etc.)?'},
+  {s:'Treino', q:'Faz cardio? Qual e por quanto tempo?'},
+  {s:'Treino', q:'Quantos passos por dia, aproximadamente?'},
+  {s:'Objetivos', q:'Qual é o seu principal objetivo?'},
+  {s:'Objetivos', q:'Tem um prazo ou evento que está mirando?'},
+  {s:'Objetivos', q:'O que você já tentou antes e não funcionou?'},
+  {s:'Objetivos', q:'Seu nível de comprometimento agora (de 1 a 10)?'},
+];
+
+/* Editor da anamnese (treinador) */
+function CoachAnamnese({coach,student}){
+  const [anam,setAnam]=useState(undefined);
+  const [items,setItems]=useState([]);
+  const [orig,setOrig]=useState([]);
+  const [busy,setBusy]=useState(false); const [saved,setSaved]=useState(false);
+  const fn=(student.name||'o aluno').split(' ')[0];
+  const load=useCallback(async()=>{
+    const {data:a}=await sb.from('anamneses').select('*').eq('coach_id',coach.id).eq('student_id',student.id).order('created_at',{ascending:false}).limit(1).maybeSingle();
+    if(!a){setAnam(null);setItems([]);return;}
+    const {data:it}=await sb.from('anamnese_items').select('*').eq('anamnese_id',a.id).order('order_index');
+    setAnam(a); setItems((it||[]).map(x=>({...x}))); setOrig((it||[]).map(x=>x.id));
+  },[coach.id,student.id]);
+  useEffect(()=>{load();},[load]);
+  const create=async()=>{
+    setBusy(true);
+    try{
+      const {data:a,error}=await sb.from('anamneses').insert({coach_id:coach.id,student_id:student.id}).select().single();
+      if(error) throw error;
+      await sb.from('anamnese_items').insert(DEFAULT_ANAMNESE.map((d,i)=>({anamnese_id:a.id,section:d.s,question:d.q,order_index:i})));
+      await load();
+    }catch(e){ const m=e.message||''+e; alert(/find the table|PGRST205|does not exist|42P01/.test(m)?'Rode o SQL "patch-anamnese.sql" no Supabase primeiro (vou te mandar).':'Erro: '+m); }
+    setBusy(false);
+  };
+  const updItem=(id,k,v)=>setItems(arr=>arr.map(i=>i.id===id?{...i,[k]:v}:i));
+  const addItem=(section)=>setItems(arr=>[...arr,{id:genId(),anamnese_id:anam.id,section,question:'',answer:null,order_index:arr.length}]);
+  const delItem=(id)=>setItems(arr=>arr.filter(i=>i.id!==id));
+  const addSection=()=>{ const s=prompt('Nome da nova seção:'); if(s&&s.trim()) addItem(s.trim()); };
+  const save=async()=>{
+    setBusy(true);
+    try{
+      const payload=items.map((i,idx)=>({id:i.id,anamnese_id:anam.id,section:i.section||null,question:i.question,answer:i.answer??null,order_index:idx}));
+      if(payload.length) await sb.from('anamnese_items').upsert(payload);
+      const cur=payload.map(p=>p.id), del=orig.filter(id=>!cur.includes(id));
+      if(del.length) await sb.from('anamnese_items').delete().in('id',del);
+      await load(); setSaved(true); setTimeout(()=>setSaved(false),1500);
+    }catch(e){ alert('Erro ao salvar: '+(e.message||e)); }
+    setBusy(false);
+  };
+  if(anam===undefined) return <Spinner/>;
+  if(anam===null){
+    const secs=[...new Set(DEFAULT_ANAMNESE.map(d=>d.s))];
+    return (
+      <div>
+        <div className="alert alert-info">📋 Envie uma anamnese completa para <b>{fn}</b>. Já vem com perguntas prontas — e depois você pode <b>editar, adicionar ou remover</b> tudo livremente.</div>
+        <div className="card">
+          <div className="sec-title">O que vai no questionário</div>
+          {secs.map(s=>(<div key={s} style={{marginBottom:8}}>
+            <div style={{fontWeight:700,fontSize:13}}>{s}</div>
+            <div style={{fontSize:12,color:'var(--text2)'}}>{DEFAULT_ANAMNESE.filter(d=>d.s===s).length} perguntas</div></div>))}
+          <button className="btn btn-primary btn-block" style={{marginTop:10}} disabled={busy} onClick={create}>{busy?'Enviando…':'📨 Enviar anamnese para '+fn}</button>
+        </div>
+      </div>
+    );
+  }
+  const sections=[...new Set(items.map(i=>i.section||'Geral'))];
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}}>
+        <span className={`badge ${anam.status==='answered'?'bg':'ba'}`} style={anam.status!=='answered'?{background:'var(--gold-dim)',color:'#8a6a37'}:{}}>
+          {anam.status==='answered'?'✓ Respondida':'⏳ Aguardando resposta'}</span>
+        <button className="btn btn-ghost btn-sm" onClick={addSection}>＋ Nova seção</button>
+      </div>
+      {sections.map(s=>(
+        <div className="card" key={s} style={{marginBottom:12}}>
+          <div className="sec-title">{s}</div>
+          {items.filter(i=>(i.section||'Geral')===s).map(it=>(
+            <div key={it.id} style={{marginBottom:12,paddingBottom:12,borderBottom:'1px solid var(--border)'}}>
+              <div style={{display:'flex',gap:8,alignItems:'flex-start'}}>
+                <textarea className="fi" style={{minHeight:44,fontSize:14}} value={it.question} onChange={e=>updItem(it.id,'question',e.target.value)} placeholder="Pergunta"/>
+                <button className="btn-icon" onClick={()=>delItem(it.id)} title="Remover">✕</button>
+              </div>
+              {it.answer ? <div style={{background:'var(--bg3)',borderRadius:10,padding:'9px 12px',marginTop:8,fontSize:13.5}}>
+                <span style={{color:'var(--accent)',fontWeight:700,fontSize:11}}>RESPOSTA · </span>{it.answer}</div>
+                : <div style={{fontSize:11,color:'var(--text3)',marginTop:6}}>Ainda não respondida</div>}
+            </div>
+          ))}
+          <button className="btn btn-ghost btn-sm" onClick={()=>addItem(s)}>＋ Pergunta nesta seção</button>
+        </div>
+      ))}
+      <div style={{position:'sticky',bottom:0,padding:'14px 0'}}>
+        <button className="btn btn-primary btn-block" disabled={busy} onClick={save}>{busy?'Salvando…':saved?'✓ Salvo':'💾 Salvar anamnese'}</button>
+      </div>
+    </div>
+  );
+}
+
+/* Banner de anamnese pendente (Hoje do aluno) */
+function AnamneseBanner({profile,onOpen}){
+  const [pending,setPending]=useState(false);
+  useEffect(()=>{ sb.from('anamneses').select('id').eq('student_id',profile.id).eq('status','pending').limit(1).maybeSingle()
+    .then(({data})=>setPending(!!data)).catch(()=>{}); },[profile.id]);
+  if(!pending) return null;
+  return (
+    <div className="card" onClick={onOpen} style={{marginBottom:14,cursor:'pointer',display:'flex',alignItems:'center',gap:12,borderColor:'var(--gold)'}}>
+      <span style={{fontSize:26}}>📋</span>
+      <div style={{flex:1}}><div style={{fontWeight:700,fontSize:14}}>Anamnese pendente</div>
+        <div style={{fontSize:12,color:'var(--text2)'}}>Seu treinador enviou um questionário. Toque para responder.</div></div>
+      <span style={{color:'var(--accent)',fontSize:18}}>›</span>
+    </div>
+  );
+}
+
+/* Anamnese do aluno (responder / ver) */
+function StudentAnamnese({profile}){
+  const [anam,setAnam]=useState(undefined);
+  const [items,setItems]=useState([]);
+  const [ans,setAns]=useState({});
+  const [busy,setBusy]=useState(false);
+  const [editing,setEditing]=useState(false);
+  const load=useCallback(async()=>{
+    const {data:a}=await sb.from('anamneses').select('*').eq('student_id',profile.id).order('created_at',{ascending:false}).limit(1).maybeSingle();
+    if(!a){setAnam(null);return;}
+    const {data:it}=await sb.from('anamnese_items').select('*').eq('anamnese_id',a.id).order('order_index');
+    setAnam(a); setItems(it||[]); setAns(Object.fromEntries((it||[]).map(i=>[i.id,i.answer||''])));
+    setEditing(a.status!=='answered');
+  },[profile.id]);
+  useEffect(()=>{load();},[load]);
+  const submit=async()=>{
+    setBusy(true);
+    try{
+      await Promise.all(items.map(i=>sb.from('anamnese_items').update({answer:(ans[i.id]||'').trim()||null}).eq('id',i.id)));
+      await sb.from('anamneses').update({status:'answered',answered_at:new Date().toISOString()}).eq('id',anam.id);
+      await load(); alert('Anamnese enviada ao seu treinador! ✅');
+    }catch(e){ alert('Erro ao enviar: '+(e.message||e)); }
+    setBusy(false);
+  };
+  if(anam===undefined||anam===null) return null;
+  const sections=[...new Set(items.map(i=>i.section||'Geral'))];
+  return (
+    <div className="card" style={{marginBottom:14}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+        <div className="sec-title" style={{border:'none',margin:0,padding:0}}>📋 Anamnese</div>
+        {anam.status==='answered' && !editing && <button className="btn btn-ghost btn-sm" onClick={()=>setEditing(true)}>Editar</button>}
+      </div>
+      {anam.status==='answered' && !editing ? (
+        <>
+          <div style={{fontSize:12,color:'var(--sage)',fontWeight:600,marginBottom:10}}>✓ Respondida — seu treinador já pode ver.</div>
+          {sections.map(s=>(<div key={s} style={{marginBottom:10}}>
+            <div style={{fontWeight:700,fontSize:12,color:'var(--accent)',marginBottom:6}}>{s}</div>
+            {items.filter(i=>(i.section||'Geral')===s).map(i=>(
+              <div key={i.id} style={{marginBottom:8}}><div style={{fontSize:12.5,color:'var(--text2)'}}>{i.question}</div>
+                <div style={{fontSize:13.5,fontWeight:500}}>{i.answer||'—'}</div></div>))}
+          </div>))}
+        </>
+      ) : (
+        <>
+          <div style={{fontSize:12.5,color:'var(--text2)',marginBottom:12}}>Responda com sinceridade — quanto mais detalhe, melhor seu plano. 💪</div>
+          {sections.map(s=>(<div key={s} style={{marginBottom:12}}>
+            <div style={{fontWeight:700,fontSize:12,color:'var(--accent)',marginBottom:8,textTransform:'uppercase',letterSpacing:.4}}>{s}</div>
+            {items.filter(i=>(i.section||'Geral')===s).map(i=>(
+              <div key={i.id} className="fg" style={{marginBottom:11}}>
+                <label className="flbl">{i.question}</label>
+                <textarea className="fi" style={{minHeight:50}} value={ans[i.id]||''} onChange={e=>setAns(a=>({...a,[i.id]:e.target.value}))} placeholder="Sua resposta"/>
+              </div>))}
+          </div>))}
+          <button className="btn btn-primary btn-block" disabled={busy} onClick={submit}>{busy?'Enviando…':'Enviar anamnese'}</button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function StudentApp({profile,setProfile}){
   const [tab,setTab]=useState('today');
   if(!profile.coach_id) return <LinkCoach profile={profile} setProfile={setProfile}/>;
@@ -1626,11 +1891,12 @@ function StudentApp({profile,setProfile}){
         <LogoMark size={30}/><b style={{fontSize:15}}>MF Nutrition</b>
       </div>
       <div className="stu-main">
-        {tab==='today' && <StudentToday profile={profile}/>}
+        {tab==='today' && <StudentToday profile={profile} onTab={setTab}/>}
         {tab==='subs' && <StudentSubs profile={profile}/>}
         {tab==='cardio' && <StudentCardio profile={profile}/>}
         {tab==='progress' && <StudentProgress profile={profile} setProfile={setProfile}/>}
-        {tab==='chat' && <div><div className="ph-title" style={{marginBottom:14}}>Conversa com o coach</div>
+        {tab==='chat' && <div><div className="ph-title" style={{marginBottom:14}}>Seu treinador</div>
+          <StudentAnamnese profile={profile}/>
           <ChatPanel me={profile} studentId={profile.id} myName={profile.name}/></div>}
       </div>
       <div className="botnav"><div className="botnav-in">
@@ -1668,7 +1934,7 @@ function LinkCoach({profile,setProfile}){
 }
 
 /* ──────── Aluno: Hoje ──────── */
-function StudentToday({profile}){
+function StudentToday({profile,onTab}){
   const [plan,setPlan]=useState(undefined);
   const [meals,setMeals]=useState([]);
   const [checks,setChecks]=useState({}); // meal_id -> true
@@ -1729,6 +1995,7 @@ function StudentToday({profile}){
       <div style={{marginBottom:14}}><div className="ph-title">{plan.title||'Hoje'}</div>
         <div className="ph-sub">{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</div></div>
 
+      <AnamneseBanner profile={profile} onOpen={()=>onTab&&onTab('chat')}/>
       <StreakBanner profile={profile} mealsCount={meals.length}/>
       <MealReminders profile={profile} meals={meals}/>
 
